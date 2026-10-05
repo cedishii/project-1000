@@ -207,6 +207,7 @@ void main() {
     Map<String, Object?> json(List<int> b) =>
         (jsonDecode(utf8.decode(b)) as Map).cast<String, Object?>();
     List<int> bytes(Object o) => utf8.encode(jsonEncode(o));
+    Object? itemsOf(Map d) => ((d['journeys'] as List).first as Map)['items'];
 
     /// Edits data.json and keeps the manifest checksum consistent, so the
     /// content validation itself is tested.
@@ -253,7 +254,7 @@ void main() {
       await expectRejected(
         await tampered((f) {
           final d = json(f[dataName]!);
-          ((d['items'] as List).first as Map)['title'] = 'Changed';
+          ((itemsOf(d) as List).first as Map)['title'] = 'Changed';
           f[dataName] = bytes(d);
         }),
         ImportProblem.corrupted,
@@ -274,7 +275,7 @@ void main() {
     test('duplicate item numbers', () async {
       await expectRejected(
         await withData((d) {
-          final items = (d['items'] as List).cast<Map>();
+          final items = (itemsOf(d) as List).cast<Map>();
           items[1]['number'] = items[0]['number'];
         }),
         ImportProblem.invalidData,
@@ -284,7 +285,7 @@ void main() {
     test('duplicate IDs', () async {
       await expectRejected(
         await withData((d) {
-          final items = (d['items'] as List).cast<Map>();
+          final items = (itemsOf(d) as List).cast<Map>();
           items[1]['id'] = items[0]['id'];
         }),
         ImportProblem.invalidData,
@@ -294,8 +295,8 @@ void main() {
     test('more than 1000 items', () async {
       await expectRejected(
         await withData((d) {
-          final items = (d['items'] as List).cast<Map>();
-          d['items'] = [
+          final items = (itemsOf(d) as List).cast<Map>();
+          ((d['journeys'] as List).first as Map)['items'] = [
             for (var n = 1; n <= 1001; n++)
               {...items[0], 'id': 'id$n', 'number': n, 'memories': []},
           ];
@@ -307,7 +308,7 @@ void main() {
     test('photo path trying to escape the archive folder', () async {
       await expectRejected(
         await withData((d) {
-          final m = ((d['items'] as List).first as Map)['memories'] as List;
+          final m = ((itemsOf(d) as List).first as Map)['memories'] as List;
           ((m.first as Map)['photos'] as List).cast<Map>().first['file'] =
               '../../evil.jpg';
         }),
@@ -318,7 +319,7 @@ void main() {
     test('invalid date', () async {
       await expectRejected(
         await withData((d) {
-          ((d['items'] as List).first as Map)['completedOn'] = '2031-02-30';
+          ((itemsOf(d) as List).first as Map)['completedOn'] = '2031-02-30';
         }),
         ImportProblem.invalidData,
       );

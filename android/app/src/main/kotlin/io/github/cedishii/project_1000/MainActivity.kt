@@ -10,11 +10,11 @@ import java.io.File
 import java.io.FileInputStream
 
 /**
- * Adds one small native feature: "Save backup to…", which lets the user
- * choose where a backup .zip goes (Downloads, an SD card, Google Drive,
- * …) using Android's own save dialog. The file is copied as a stream, so
- * large backups never need to fit in memory, and no storage permission
- * is required.
+ * Adds one small native feature: "Save to device…", which lets the user
+ * choose where a backup .zip or a Life Album PDF goes (Downloads, an SD
+ * card, Google Drive, …) using Android's own save dialog. The file is
+ * copied as a stream, so large files never need to fit in memory, and no
+ * storage permission is required.
  */
 class MainActivity : FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
@@ -34,6 +34,7 @@ class MainActivity : FlutterActivity() {
                 }
                 val source = call.argument<String>("source")
                 val name = call.argument<String>("name")
+                val mime = call.argument<String>("mime") ?: "application/zip"
                 if (source == null || name == null) {
                     result.error("args", "source and name are required", null)
                     return@setMethodCallHandler
@@ -42,7 +43,7 @@ class MainActivity : FlutterActivity() {
                 pendingSource = source
                 val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "application/zip"
+                    type = mime
                     putExtra(Intent.EXTRA_TITLE, name)
                 }
                 startActivityForResult(intent, REQUEST_SAVE)

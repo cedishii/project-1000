@@ -25,3 +25,8 @@ String plural(int n, String one, [String? many]) =>
 
 final _dateTime = DateFormat.yMMMMd().add_jm();
 String longDateTime(DateTime d) => _dateTime.format(d);
+
+final _monthYear = DateFormat.yMMMM();
+
+/// "October 2026".
+String monthYear(CalendarDate d) => _monthYear.format(d.toDateTime());

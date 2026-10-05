@@ -36,6 +36,15 @@ phone until you export a backup yourself.
   locations and `#hashtags`; **filters** for All / Completed / Not
   completed.
 - **Progress:** completed, remaining and percentage of 1,000.
+- **Profile, EXP and levels.** Every completed thing is worth exactly
+  1,000 EXP and every 10 things is a level, up to Level 100 at
+  1,000 / 1,000. It is always calculated from the list, never stored or
+  granted any other way, and it never affects the order.
+- **Journeys.** Finishing all 1,000 things completes a journey. You
+  choose when to archive it and begin the next (reusing your list or
+  starting fresh). Every archived journey is kept in full, read-only.
+- **Life Album** for each journey: your completed things and memories as
+  a book, in your list's order, exportable as a PDF.
 - **Backup & restore** to a single `.zip` file for moving to a new
   phone. Every file is checksum-verified before anything is replaced.
 - **Light, dark or system theme.**
@@ -48,6 +57,7 @@ phone until you export a backup yourself.
 | Database | SQLite via `sqflite` | Transactional, reliable for decades, fast with thousands of rows |
 | Photos | Files in the app's private folder; `image_picker` to choose, `image` for thumbnails | No permission prompts on modern Android (system photo picker) |
 | Backup | `archive` (zip), `crypto` (SHA-256) | Portable, inspectable, verifiable |
+| Life Album PDF | `pdf` | Pure Dart, runs offline in the background; fonts are bundled |
 
 The full dependency list (all from [pub.dev](https://pub.dev)) is in
 `pubspec.yaml`. None of them sends data anywhere.

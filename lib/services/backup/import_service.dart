@@ -6,6 +6,7 @@ import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
 import 'package:project_1000/core/log.dart';
 
 import '../../data/archive_location.dart';
@@ -20,6 +21,7 @@ class ImportPreview {
   ImportPreview({
     required this.exportedAt,
     required this.appVersion,
+    required this.journeyCount,
     required this.itemCount,
     required this.memoryCount,
     required this.photoCount,
@@ -30,12 +32,17 @@ class ImportPreview {
 
   final DateTime? exportedAt;
   final String appVersion;
+  final int journeyCount;
+
+  /// Things on all journeys' lists.
   final int itemCount;
   final int memoryCount;
   final int photoCount;
 
   /// Photos referenced by the backup whose files are missing or damaged.
   final int missingPhotoCount;
+
+  /// The ids of the current (active) journey's items.
   final Set<String> itemIds;
   final Map<String, Object?> data;
 }
@@ -99,52 +106,35 @@ Future<void> buildIncomingArchive(
           in (data['settings'] as Map? ?? const {}).entries) {
         batch.insert('settings', {'key': key, 'value': '$value'});
       }
-      for (final i in (data['items'] as List).cast<Map>()) {
-        batch.insert('items', {
-          'id': i['id'],
-          'number': i['number'],
-          'position': i['position'],
-          'title': i['title'],
-          'description': i['description'] ?? '',
-          'is_completed': i['isCompleted'] == true ? 1 : 0,
-          'completed_on': i['completedOn'],
-          'created_at': i['createdAt'],
-          'updated_at': i['updatedAt'],
+      final profile = data['profile'] as Map?;
+      if (profile != null) {
+        batch.insert('profile', {
+          'id': 1,
+          'name': profile['name'] ?? '',
+          'nickname': profile['nickname'] ?? '',
+          'age': profile['age'],
+          'started_on': profile['startedOn'],
+          'bio': profile['bio'] ?? '',
+          'photo': profile['photo'],
+          'updated_at':
+              profile['updatedAt'] ?? DateTime.now().toUtc().toIso8601String(),
         });
-        for (final m in (i['memories'] as List).cast<Map>()) {
-          batch.insert('memories', {
-            'id': m['id'],
-            'item_id': i['id'],
-            'position': m['position'],
-            'title': m['title'] ?? '',
-            'body': m['text'] ?? '',
-            'date': m['date'],
-            'location': m['location'] ?? '',
-            'created_at': m['createdAt'],
-            'updated_at': m['updatedAt'],
-          });
-          final tags = (m['hashtags'] as List).cast<String>();
-          for (var t = 0; t < tags.length; t++) {
-            batch.insert('memory_tags', {
-              'memory_id': m['id'],
-              'position': t,
-              'tag': tags[t],
-            }, conflictAlgorithm: ConflictAlgorithm.ignore);
-          }
-          for (final ph in (m['photos'] as List).cast<Map>()) {
-            if (ph['_skip'] == true) continue;
-            batch.insert('photos', {
-              'id': ph['id'],
-              'memory_id': m['id'],
-              'position': ph['position'],
-              'file': ph['file'],
-              'thumb': ph['thumb'],
-              'width': ph['width'],
-              'height': ph['height'],
-              'created_at': ph['createdAt'],
-            });
-          }
-        }
+      }
+      // The new database was created with its own Journey 1; replace it
+      // with the backup's journeys.
+      batch.delete('journeys');
+      for (final j in (data['journeys'] as List).cast<Map>()) {
+        batch.insert('journeys', {
+          'id': j['id'],
+          'number': j['number'],
+          'status': j['status'],
+          'started_on': j['startedOn'],
+          'completed_on': j['completedOn'],
+          'snapshot': j['snapshot'] == null ? null : jsonEncode(j['snapshot']),
+          'created_at': j['createdAt'],
+          'archived_at': j['archivedAt'],
+        });
+        _insertItems(batch, j['id'] as String, j['items'] as List);
       }
       await batch.commit(noResult: true);
     });
@@ -155,6 +145,57 @@ Future<void> buildIncomingArchive(
   if (await work.exists()) await work.delete(recursive: true);
   await ArchiveLocation.photosIn(dir).create(recursive: true);
   await ArchiveLocation.thumbsIn(dir).create(recursive: true);
+}
+
+void _insertItems(Batch batch, String journeyId, List items) {
+  for (final i in items.cast<Map>()) {
+    batch.insert('items', {
+      'id': i['id'],
+      'journey_id': journeyId,
+      'number': i['number'],
+      'position': i['position'],
+      'title': i['title'],
+      'description': i['description'] ?? '',
+      'is_completed': i['isCompleted'] == true ? 1 : 0,
+      'completed_on': i['completedOn'],
+      'created_at': i['createdAt'],
+      'updated_at': i['updatedAt'],
+    });
+    for (final m in (i['memories'] as List).cast<Map>()) {
+      batch.insert('memories', {
+        'id': m['id'],
+        'item_id': i['id'],
+        'position': m['position'],
+        'title': m['title'] ?? '',
+        'body': m['text'] ?? '',
+        'date': m['date'],
+        'location': m['location'] ?? '',
+        'created_at': m['createdAt'],
+        'updated_at': m['updatedAt'],
+      });
+      final tags = (m['hashtags'] as List).cast<String>();
+      for (var t = 0; t < tags.length; t++) {
+        batch.insert('memory_tags', {
+          'memory_id': m['id'],
+          'position': t,
+          'tag': tags[t],
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+      for (final ph in (m['photos'] as List).cast<Map>()) {
+        if (ph['_skip'] == true) continue;
+        batch.insert('photos', {
+          'id': ph['id'],
+          'memory_id': m['id'],
+          'position': ph['position'],
+          'file': ph['file'],
+          'thumb': ph['thumb'],
+          'width': ph['width'],
+          'height': ph['height'],
+          'created_at': ph['createdAt'],
+        });
+      }
+    }
+  }
 }
 
 /// Discards a prepared import (user cancelled).
@@ -230,8 +271,12 @@ ImportPreview _unpackAndValidate(
 
     // --- photos: extract each referenced file and verify its checksum
     final fileInfo = (manifest['files'] as Map? ?? const {});
+    final journeys = (data['journeys'] as List).cast<Map>();
+    final items = [
+      for (final j in journeys) ...(j['items'] as List).cast<Map>(),
+    ];
     final referenced = <Map>[
-      for (final i in (data['items'] as List).cast<Map>())
+      for (final i in items)
         for (final m in (i['memories'] as List).cast<Map>())
           ...(m['photos'] as List).cast<Map>(),
     ];
@@ -261,15 +306,40 @@ ImportPreview _unpackAndValidate(
       }
     }
 
-    final items = (data['items'] as List).cast<Map>();
+    // Profile pictures: a missing one is simply left out (the default
+    // avatar is shown instead).
+    for (final owner in [
+      data['profile'] as Map?,
+      for (final j in journeys) j['snapshot'] as Map?,
+    ]) {
+      final photo = owner?['photo'];
+      if (photo is! String) continue;
+      if (!good.contains(photo) &&
+          !_extractVerified(
+            entries[photo],
+            fileInfo[photo],
+            incomingPath,
+            photo,
+          )) {
+        owner!['photo'] = null;
+        continue;
+      }
+      good.add(photo);
+    }
+
+    final active = journeys.firstWhere((j) => j['status'] == 'active');
     return ImportPreview(
       exportedAt: DateTime.tryParse('${manifest['exportedAt']}'),
       appVersion: '${manifest['appVersion'] ?? ''}',
+      journeyCount: journeys.length,
       itemCount: items.length,
       memoryCount: [for (final i in items) ...(i['memories'] as List)].length,
       photoCount: referenced.length,
       missingPhotoCount: missing,
-      itemIds: {for (final i in items) i['id'] as String},
+      itemIds: {
+        for (final i in (active['items'] as List).cast<Map>())
+          i['id'] as String,
+      },
       data: data,
     );
   } finally {
@@ -317,10 +387,29 @@ bool _extractVerified(
   return ok;
 }
 
-/// Upgrades older data.json versions to the current one. Version 1 is the
-/// first, so there is nothing to convert yet.
+/// Upgrades older data.json versions to the current one.
 Map<String, Object?> _migrateData(Map<String, Object?> data, int fromVersion) {
-  // Future: if (fromVersion < 2) { ...convert v1 → v2... }
+  if (fromVersion < 2) {
+    // v1 had one list and no profile: it becomes Journey 1, in progress.
+    data = {
+      'dataFormatVersion': 2,
+      'settings': data['settings'],
+      'profile': null,
+      'journeys': [
+        {
+          'id': const Uuid().v4(),
+          'number': 1,
+          'status': 'active',
+          'startedOn': null,
+          'completedOn': null,
+          'snapshot': null,
+          'createdAt': DateTime.now().toUtc().toIso8601String(),
+          'archivedAt': null,
+          'items': data['items'],
+        },
+      ],
+    };
+  }
   return data;
 }
 
@@ -340,13 +429,68 @@ void _validate(Map<String, Object?> data) {
     }
   }
 
-  final items = data['items'];
-  if (items is! List) bad('items');
-  if (items.length > maxItems) bad('too many items');
+  void checkProfile(Object? p) {
+    if (p == null) return;
+    if (p is! Map) bad('profile');
+    for (final k in ['name', 'nickname', 'bio']) {
+      if (p[k] != null && p[k] is! String) bad('profile $k');
+    }
+    final age = p['age'];
+    if (age != null && (age is! int || age < 0 || age > 200)) bad('age');
+    if (p['startedOn'] != null && !isDate(p['startedOn'])) bad('startedOn');
+    final photo = p['photo'];
+    if (photo != null &&
+        (photo is! String ||
+            !photo.startsWith('profile/') ||
+            !isSafeMediaPath(photo))) {
+      bad('profile photo');
+    }
+  }
+
   final settings = data['settings'];
   if (settings != null && settings is! Map) bad('settings');
+  checkProfile(data['profile']);
+  final journeys = data['journeys'];
+  if (journeys is! List || journeys.isEmpty) bad('journeys');
 
   final ids = <String>{};
+  final journeyNumbers = <int>{};
+  var active = 0;
+  for (final j in journeys) {
+    if (j is! Map) bad('journey');
+    final id = j['id'], number = j['number'], status = j['status'];
+    if (id is! String || id.isEmpty || !ids.add(id)) bad('journey id');
+    if (number is! int || number < 1 || !journeyNumbers.add(number)) {
+      bad('journey number');
+    }
+    if (status == 'active') {
+      active++;
+    } else if (status != 'archived') {
+      bad('journey status');
+    }
+    for (final k in ['startedOn', 'completedOn']) {
+      if (j[k] != null && !isDate(j[k])) bad('journey $k');
+    }
+    if (!isTimestamp(j['createdAt'])) bad('journey createdAt');
+    if (j['archivedAt'] != null && !isTimestamp(j['archivedAt'])) {
+      bad('journey archivedAt');
+    }
+    checkProfile(j['snapshot']);
+    final items = j['items'];
+    if (items is! List) bad('items');
+    if (items.length > maxItems) bad('too many items');
+    _validateItems(items, ids, bad, isDate, isTimestamp);
+  }
+  if (active != 1) bad('active journeys: $active');
+}
+
+void _validateItems(
+  List items,
+  Set<String> ids,
+  Never Function(String) bad,
+  bool Function(Object?) isDate,
+  bool Function(Object?) isTimestamp,
+) {
   final numbers = <int>{};
   for (final i in items) {
     if (i is! Map) bad('item');

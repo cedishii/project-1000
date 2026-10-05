@@ -13,8 +13,11 @@ import '../store_scope.dart';
 import '../theme.dart';
 import '../widgets/emblem.dart';
 import '../widgets/item_widgets.dart';
+import '../widgets/level_widgets.dart';
 import 'item_detail_screen.dart';
 import 'item_editor_screen.dart';
+import 'journey_complete_screen.dart';
+import 'profile_screen.dart';
 import 'reorder_screen.dart';
 import 'settings_screen.dart';
 
@@ -115,6 +118,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openProfile() => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => const ProfileScreen()),
+  );
+
   void _open(BucketItem item) => Navigator.push(
     context,
     MaterialPageRoute(builder: (_) => ItemDetailScreen(itemId: item.id)),
@@ -170,6 +178,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           IconButton(
+            tooltip: 'Profile',
+            icon: const Icon(Icons.account_circle_outlined),
+            onPressed: _openProfile,
+          ),
+          IconButton(
             tooltip: 'Settings',
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => Navigator.push(
@@ -187,15 +200,27 @@ class _HomeScreenState extends State<HomeScreen> {
               label: const Text('Add'),
             ),
       body: items.isEmpty
-          ? _EmptyList(onAdd: _add)
+          ? _EmptyList(onAdd: _add, journey: store.journey.number)
           : CustomScrollView(
               slivers: [
+                if (store.progression.isComplete)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: JourneyCompleteBanner(journey: store.journey),
+                    ),
+                  ),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   sliver: SliverToBoxAdapter(
                     child: ProgressHeader(
                       completed: store.completedCount,
                       listed: items.length,
+                      footer: CompactLevelRow(
+                        journey: store.journey.number,
+                        progression: store.progression,
+                        onTap: _openProfile,
+                      ),
                     ),
                   ),
                 ),
@@ -297,9 +322,12 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _EmptyList extends StatelessWidget {
-  const _EmptyList({required this.onAdd});
+  const _EmptyList({required this.onAdd, required this.journey});
 
   final VoidCallback onAdd;
+
+  /// The current journey's number; a new journey says so.
+  final int journey;
 
   @override
   Widget build(BuildContext context) {
@@ -313,6 +341,14 @@ class _EmptyList extends StatelessWidget {
             children: [
               const Emblem(size: 120),
               const SizedBox(height: 28),
+              if (journey > 1) ...[
+                Text(
+                  'JOURNEY $journey BEGINS.',
+                  style: display(16, color: theme.colorScheme.primary),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+              ],
               Text(
                 'Your list is empty.',
                 style: display(26),

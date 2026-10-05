@@ -12,18 +12,21 @@ import 'package:crypto/crypto.dart';
 
 const String backupFormatId = 'project-1000-backup';
 const int backupFormatVersion = 1;
-const int dataFormatVersion = 1;
+
+/// 1: one list. 2: journeys (each with its own list) and the profile.
+const int dataFormatVersion = 2;
 
 const String manifestName = 'manifest.json';
 const String dataName = 'data.json';
 
 /// Folders inside the zip that may contain archive files.
-const List<String> mediaFolders = ['photos', 'thumbs'];
+const List<String> mediaFolders = ['photos', 'thumbs', 'profile'];
 
-/// The only file names accepted from a backup for media: `photos/<name>`
-/// or `thumbs/<name>` with a plain file name (no `..`, no sub-folders).
+/// The only file names accepted from a backup for media: `photos/<name>`,
+/// `thumbs/<name>` or `profile/<name>` with a plain file name (no `..`,
+/// no sub-folders).
 final RegExp mediaPathPattern = RegExp(
-  r'^(photos|thumbs)/[A-Za-z0-9][A-Za-z0-9._-]{0,120}$',
+  r'^(photos|thumbs|profile)/[A-Za-z0-9][A-Za-z0-9._-]{0,120}$',
 );
 
 bool isSafeMediaPath(String path) =>

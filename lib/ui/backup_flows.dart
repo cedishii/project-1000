@@ -24,7 +24,7 @@ const _channel = MethodChannel('project_1000/backup_file');
 Future<void> exportFlow(BuildContext context) async {
   final store = StoreScope.read(context);
   final progress = ValueNotifier<double?>(null);
-  final close = _showProgress(context, 'Preparing your backup…', progress);
+  final close = showProgressDialog(context, 'Preparing your backup…', progress);
   ExportResult result;
   try {
     final info = await PackageInfo.fromPlatform();
@@ -40,7 +40,7 @@ Future<void> exportFlow(BuildContext context) async {
     close();
     logError('Export failed', e, s);
     if (context.mounted) {
-      await _alert(
+      await showAlert(
         context,
         'Backup failed',
         isOutOfSpace(e)
@@ -68,43 +68,23 @@ class _ExportReadySheet extends StatelessWidget {
   final ExportResult result;
 
   Future<void> _saveAndroid(BuildContext context) async {
-    try {
-      final saved = await _channel.invokeMethod<bool>('saveAs', {
-        'source': result.file.path,
-        'name': p.basename(result.file.path),
-      });
-      if (saved == true && context.mounted) {
-        Navigator.pop(context);
-        showMessage(context, 'Backup saved.');
-      }
-    } on PlatformException catch (e, s) {
-      logError('Save failed', e, s);
-      if (context.mounted) {
-        showMessage(
-          context,
-          'The backup couldn\'t be saved there. Try another location.',
-        );
-      }
+    final saved = await saveFileToDevice(
+      context,
+      result.file,
+      'application/zip',
+    );
+    if (saved && context.mounted) {
+      Navigator.pop(context);
+      showMessage(context, 'Backup saved.');
     }
   }
 
-  Future<void> _share(BuildContext context) async {
-    final box = context.findRenderObject() as RenderBox?;
-    try {
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(result.file.path, mimeType: 'application/zip')],
-          subject: 'Project: 1000 backup',
-          sharePositionOrigin: box == null
-              ? null
-              : box.localToGlobal(Offset.zero) & box.size,
-        ),
-      );
-    } catch (e, s) {
-      logError('Share failed', e, s);
-      if (context.mounted) showMessage(context, 'Sharing isn\'t available.');
-    }
-  }
+  Future<void> _share(BuildContext context) => shareFiles(
+    context,
+    [result.file],
+    'application/zip',
+    'Project: 1000 backup',
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -136,9 +116,10 @@ class _ExportReadySheet extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
+              '${result.journeys > 1 ? '${plural(result.journeys, 'journey')} · ' : ''}'
               '${plural(result.items, 'thing')} · '
               '${plural(result.memories, 'memory', 'memories')} · '
-              '${plural(result.photos, 'photo')} · ${_fileSize(size)}',
+              '${plural(result.photos, 'photo')} · ${fileSize(size)}',
               style: theme.textTheme.bodySmall,
             ),
             if (result.missingFiles.isNotEmpty) ...[
@@ -207,7 +188,7 @@ Future<void> importFlow(BuildContext context) async {
       // Large backups take a while to copy from Drive/Downloads.
       onFileLoading: (status) {
         if (status == FilePickerStatus.picking && context.mounted) {
-          closeOpening ??= _showProgress(context, 'Opening file…');
+          closeOpening ??= showProgressDialog(context, 'Opening file…');
         }
       },
     );
@@ -218,7 +199,7 @@ Future<void> importFlow(BuildContext context) async {
     closeOpening?.call();
     logError('Picker failed', e, s);
     if (context.mounted) {
-      await _alert(
+      await showAlert(
         context,
         'Couldn\'t open the file',
         'The file couldn\'t be opened. Make sure the app is allowed to '
@@ -230,7 +211,7 @@ Future<void> importFlow(BuildContext context) async {
   if (!context.mounted) return;
 
   final progress = ValueNotifier<double?>(null);
-  var close = _showProgress(
+  var close = showProgressDialog(
     context,
     'Checking every file in the backup…',
     progress,
@@ -245,7 +226,7 @@ Future<void> importFlow(BuildContext context) async {
   } on ImportException catch (e) {
     close();
     if (context.mounted) {
-      await _alert(context, 'Can\'t import this file', e.problem.message);
+      await showAlert(context, 'Can\'t import this file', e.problem.message);
     }
     await _clearPickerCache();
     return;
@@ -269,7 +250,7 @@ Future<void> importFlow(BuildContext context) async {
     break;
   }
 
-  close = _showProgress(context, 'Restoring your list…');
+  close = showProgressDialog(context, 'Restoring your list…');
   try {
     await store.importBackup(preview);
     close();
@@ -285,7 +266,7 @@ Future<void> importFlow(BuildContext context) async {
     logError('Import failed', e, s);
     await cancelImport(store.location);
     if (context.mounted) {
-      await _alert(
+      await showAlert(
         context,
         'Import failed',
         isOutOfSpace(e)
@@ -325,6 +306,7 @@ Future<_ImportChoice> _confirmImport(
             if (preview.exportedAt != null)
               Text('Made ${_dateTime(preview.exportedAt!)}'),
             Text(
+              '${preview.journeyCount > 1 ? '${plural(preview.journeyCount, 'journey')} · ' : ''}'
               '${plural(preview.itemCount, 'thing')} · '
               '${plural(preview.memoryCount, 'memory', 'memories')} · '
               '${plural(preview.photoCount, 'photo')}',
@@ -350,9 +332,9 @@ Future<_ImportChoice> _confirmImport(
             Text(
               current.isEmpty
                   ? 'Your list is currently empty.'
-                  : 'Importing will replace your current list '
-                        '(${plural(current.length, 'thing')}) and its memories '
-                        'and photos.',
+                  : 'Importing will replace everything on this phone: your '
+                        'current list (${plural(current.length, 'thing')}), '
+                        'memories, photos, profile and journey history.',
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ],
@@ -386,9 +368,59 @@ Future<void> _clearPickerCache() async {
 
 // ----------------------------------------------------------------- helpers
 
+/// Android: lets the user pick where [file] is saved (Downloads, Drive,
+/// …). Returns true if it was saved.
+Future<bool> saveFileToDevice(
+  BuildContext context,
+  File file,
+  String mime,
+) async {
+  try {
+    final saved = await _channel.invokeMethod<bool>('saveAs', {
+      'source': file.path,
+      'name': p.basename(file.path),
+      'mime': mime,
+    });
+    return saved == true;
+  } on PlatformException catch (e, s) {
+    logError('Save failed', e, s);
+    if (context.mounted) {
+      showMessage(
+        context,
+        'The file couldn\'t be saved there. Try another location.',
+      );
+    }
+    return false;
+  }
+}
+
+/// Opens the system share sheet (Files, Drive, email, …) for [files].
+Future<void> shareFiles(
+  BuildContext context,
+  List<File> files,
+  String mime,
+  String subject,
+) async {
+  final box = context.findRenderObject() as RenderBox?;
+  try {
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [for (final f in files) XFile(f.path, mimeType: mime)],
+        subject: subject,
+        sharePositionOrigin: box == null
+            ? null
+            : box.localToGlobal(Offset.zero) & box.size,
+      ),
+    );
+  } catch (e, s) {
+    logError('Share failed', e, s);
+    if (context.mounted) showMessage(context, 'Sharing isn\'t available.');
+  }
+}
+
 /// Shows a non-dismissible progress dialog; returns a function closing it.
 /// If [progress] is given, a bar shows how far along the work is.
-VoidCallback _showProgress(
+VoidCallback showProgressDialog(
   BuildContext context,
   String message, [
   ValueNotifier<double?>? progress,
@@ -440,7 +472,7 @@ VoidCallback _showProgress(
   };
 }
 
-Future<void> _alert(BuildContext context, String title, String message) =>
+Future<void> showAlert(BuildContext context, String title, String message) =>
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -455,7 +487,7 @@ Future<void> _alert(BuildContext context, String title, String message) =>
       ),
     );
 
-String _fileSize(int bytes) {
+String fileSize(int bytes) {
   if (bytes < 1024 * 1024) return '${(bytes / 1024).ceil()} KB';
   if (bytes < 1024 * 1024 * 1024) {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';

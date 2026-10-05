@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
@@ -8,7 +10,13 @@ class ListFullException implements Exception {
   String toString() => 'The list already has $maxItems things.';
 }
 
+/// Thrown when an item (or memory) is not on the current journey's list:
+/// it was deleted, or it belongs to an archived journey, which is a
+/// read-only historical record.
 class ItemNotFoundException implements Exception {}
+
+/// A journey can only be archived when all 1,000 things are completed.
+class JourneyNotCompleteException implements Exception {}
 
 /// Everything needed to save a memory (new or edited).
 class MemoryDraft {
@@ -37,8 +45,32 @@ class MemoryDraft {
   final List<PhotoRef> photos;
 }
 
+/// The size of one memory, for laying out a Life Album.
+class AlbumMemoryMeta {
+  const AlbumMemoryMeta({
+    required this.id,
+    required this.textLength,
+    required this.photoCount,
+  });
+
+  final String id;
+  final int textLength;
+  final int photoCount;
+}
+
+/// A completed item and the outline of its memories.
+class AlbumEntry {
+  const AlbumEntry({required this.item, required this.memories});
+
+  final BucketItem item;
+  final List<AlbumMemoryMeta> memories;
+}
+
 /// All reads and writes of the archive database. Every multi-step write
 /// runs inside a transaction so it either fully happens or not at all.
+///
+/// The list, its memories and its photos can only be changed on the
+/// active journey; archived journeys are read-only.
 class ArchiveRepository {
   ArchiveRepository(this.db);
 
@@ -48,12 +80,20 @@ class ArchiveRepository {
   static String newId() => _uuid.v4();
   static String _now() => DateTime.now().toUtc().toIso8601String();
 
+  /// SQL for the active journey's id.
+  static const _active = "(SELECT id FROM journeys WHERE status = 'active')";
+
   // ---------------------------------------------------------------- items
 
-  /// All items in the user's order. This is the only ordering the app
-  /// ever uses for the list.
-  Future<List<BucketItem>> loadItems() async {
-    final rows = await db.query('items', orderBy: 'position, rowid');
+  /// The items of [journeyId] (default: the active journey) in the
+  /// user's order. This is the only ordering the app ever uses.
+  Future<List<BucketItem>> loadItems({String? journeyId}) async {
+    final rows = await db.query(
+      'items',
+      where: journeyId == null ? 'journey_id = $_active' : 'journey_id = ?',
+      whereArgs: [?journeyId],
+      orderBy: 'position, rowid',
+    );
     return rows.map(_itemFromRow).toList();
   }
 
@@ -62,15 +102,18 @@ class ArchiveRepository {
     return rows.isEmpty ? null : _itemFromRow(rows.first);
   }
 
-  /// Adds a new item at the end of the list.
+  /// Adds a new item at the end of the current journey's list.
   ///
   /// It gets the lowest number not currently in use, so the list always
   /// stays within #1–#1000 and existing numbers never change.
   Future<BucketItem> addItem(String title, String description) {
     return db.transaction((txn) async {
+      final journeyId = await _activeJourneyId(txn);
       final numbers = (await txn.query(
         'items',
         columns: ['number'],
+        where: 'journey_id = ?',
+        whereArgs: [journeyId],
         orderBy: 'number',
       )).map((r) => r['number'] as int).toList();
       if (numbers.length >= maxItems) throw ListFullException();
@@ -81,12 +124,16 @@ class ArchiveRepository {
       }
       final maxPos =
           Sqflite.firstIntValue(
-            await txn.rawQuery('SELECT MAX(position) FROM items'),
+            await txn.rawQuery(
+              'SELECT MAX(position) FROM items WHERE journey_id = ?',
+              [journeyId],
+            ),
           ) ??
           -1;
       final now = _now();
       final row = {
         'id': newId(),
+        'journey_id': journeyId,
         'number': number,
         'position': maxPos + 1,
         'title': title.trim(),
@@ -124,7 +171,7 @@ class ArchiveRepository {
     final count = await db.update(
       'items',
       {...values, 'updated_at': _now()},
-      where: 'id = ?',
+      where: 'id = ? AND journey_id = $_active',
       whereArgs: [id],
     );
     if (count == 0) throw ItemNotFoundException();
@@ -141,16 +188,25 @@ class ArchiveRepository {
         WHERE m.item_id = ?''',
         [id],
       );
-      await txn.delete('items', where: 'id = ?', whereArgs: [id]);
+      final n = await txn.delete(
+        'items',
+        where: 'id = ? AND journey_id = $_active',
+        whereArgs: [id],
+      );
+      if (n == 0) throw ItemNotFoundException();
       return _filesOf(files);
     });
   }
 
   /// Saves a new order. [orderedIds] must contain exactly the current
-  /// items; otherwise nothing is changed.
+  /// journey's items; otherwise nothing is changed.
   Future<void> saveOrder(List<String> orderedIds) {
     return db.transaction((txn) async {
-      final current = (await txn.query('items', columns: ['id', 'position']));
+      final current = await txn.query(
+        'items',
+        columns: ['id', 'position'],
+        where: 'journey_id = $_active',
+      );
       final positions = {
         for (final r in current) r['id'] as String: r['position'] as int,
       };
@@ -174,10 +230,16 @@ class ArchiveRepository {
     });
   }
 
-  /// Number of memories per item id.
-  Future<Map<String, int>> memoryCounts() async {
+  /// Number of memories per item id, for the items of [journeyId]
+  /// (default: the active journey).
+  Future<Map<String, int>> memoryCounts({String? journeyId}) async {
     final rows = await db.rawQuery(
-      'SELECT item_id, COUNT(*) AS c FROM memories GROUP BY item_id',
+      '''
+      SELECT m.item_id, COUNT(*) AS c FROM memories m
+        JOIN items i ON i.id = m.item_id
+        WHERE i.journey_id = ${journeyId == null ? _active : '?'}
+        GROUP BY m.item_id''',
+      [?journeyId],
     );
     return {for (final r in rows) r['item_id'] as String: r['c'] as int};
   }
@@ -186,8 +248,9 @@ class ArchiveRepository {
   /// or any memory's title, text, location or hashtags.
   ///
   /// Returns a set: callers filter the list they already have, so the
-  /// user's order is untouched.
-  Future<Set<String>> searchItemIds(String query) async {
+  /// user's order is untouched. Only items of [journeyId] (default: the
+  /// active journey) are returned.
+  Future<Set<String>> searchItemIds(String query, {String? journeyId}) async {
     final term = query.trim().replaceFirst(RegExp(r'^#'), '');
     if (term.isEmpty) return {};
     final like =
@@ -196,30 +259,53 @@ class ArchiveRepository {
     final rows = await db.rawQuery(
       '''
       SELECT id FROM items
-        WHERE number = ? OR title LIKE ? ESCAPE '\\'
-           OR description LIKE ? ESCAPE '\\'
-      UNION
-      SELECT item_id FROM memories
-        WHERE title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\'
-           OR location LIKE ? ESCAPE '\\'
-      UNION
-      SELECT m.item_id FROM memory_tags t JOIN memories m ON m.id = t.memory_id
-        WHERE t.tag LIKE ? ESCAPE '\\'
+        WHERE journey_id = ${journeyId == null ? _active : '?'} AND id IN (
+          SELECT id FROM items
+            WHERE number = ? OR title LIKE ? ESCAPE '\\'
+               OR description LIKE ? ESCAPE '\\'
+          UNION
+          SELECT item_id FROM memories
+            WHERE title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\'
+               OR location LIKE ? ESCAPE '\\'
+          UNION
+          SELECT m.item_id FROM memory_tags t
+            JOIN memories m ON m.id = t.memory_id
+            WHERE t.tag LIKE ? ESCAPE '\\')
     ''',
-      [number ?? -1, like, like, like, like, like, like],
+      [?journeyId, number ?? -1, like, like, like, like, like, like],
     );
     return {for (final r in rows) r['id'] as String};
   }
 
   // ------------------------------------------------------------- memories
 
-  Future<List<Memory>> loadMemories(String itemId) async {
-    final rows = await db.query(
+  /// An item's memories, in the order they were added.
+  Future<List<Memory>> loadMemories(String itemId) async => _withDetails(
+    await db.query(
       'memories',
       where: 'item_id = ?',
       whereArgs: [itemId],
       orderBy: 'position, rowid',
-    );
+    ),
+  );
+
+  /// The memories with the given ids, in the order of [ids].
+  Future<List<Memory>> loadMemoriesByIds(List<String> ids) async {
+    final out = <String, Memory>{};
+    // SQLite limits the number of parameters per statement.
+    for (var i = 0; i < ids.length; i += 500) {
+      final chunk = ids.sublist(i, (i + 500).clamp(0, ids.length));
+      final marks = List.filled(chunk.length, '?').join(',');
+      for (final m in await _withDetails(
+        await db.query('memories', where: 'id IN ($marks)', whereArgs: chunk),
+      )) {
+        out[m.id] = m;
+      }
+    }
+    return [for (final id in ids) ?out[id]];
+  }
+
+  Future<List<Memory>> _withDetails(List<Map<String, Object?>> rows) async {
     if (rows.isEmpty) return [];
     final ids = rows.map((r) => r['id'] as String).toList();
     final marks = List.filled(ids.length, '?').join(',');
@@ -235,19 +321,17 @@ class ArchiveRepository {
       whereArgs: ids,
       orderBy: 'position',
     );
+    final tagsBy = <Object?, List<String>>{};
+    for (final t in tagRows) {
+      tagsBy.putIfAbsent(t['memory_id'], () => []).add(t['tag'] as String);
+    }
+    final photosBy = <Object?, List<PhotoRef>>{};
+    for (final p in photoRows) {
+      photosBy.putIfAbsent(p['memory_id'], () => []).add(photoFromRow(p));
+    }
     return [
       for (final r in rows)
-        _memoryFromRow(
-          r,
-          [
-            for (final t in tagRows)
-              if (t['memory_id'] == r['id']) t['tag'] as String,
-          ],
-          [
-            for (final p in photoRows)
-              if (p['memory_id'] == r['id']) photoFromRow(p),
-          ],
-        ),
+        _memoryFromRow(r, tagsBy[r['id']] ?? [], photosBy[r['id']] ?? []),
     ];
   }
 
@@ -255,6 +339,7 @@ class ArchiveRepository {
   /// Returns the photo files (relative paths) that were removed.
   Future<(String, List<String>)> saveMemory(MemoryDraft d) {
     return db.transaction((txn) async {
+      await _requireActiveItem(txn, d.itemId);
       final now = _now();
       final id = d.id ?? newId();
       final values = {
@@ -351,10 +436,227 @@ class ArchiveRepository {
         where: 'memory_id = ?',
         whereArgs: [id],
       );
-      await txn.delete('memories', where: 'id = ?', whereArgs: [id]);
+      final n = await txn.delete(
+        'memories',
+        where:
+            'id = ? AND item_id IN '
+            '(SELECT id FROM items WHERE journey_id = $_active)',
+        whereArgs: [id],
+      );
+      if (n == 0) throw ItemNotFoundException();
       return _filesOf(files);
     });
   }
+
+  Future<void> _requireActiveItem(Transaction txn, String itemId) async {
+    final rows = await txn.rawQuery(
+      'SELECT 1 FROM items WHERE id = ? AND journey_id = $_active',
+      [itemId],
+    );
+    if (rows.isEmpty) throw ItemNotFoundException();
+  }
+
+  // ------------------------------------------------------------- journeys
+
+  Future<String> _activeJourneyId(DatabaseExecutor e) async {
+    final rows = await e.rawQuery(
+      "SELECT id FROM journeys WHERE status = 'active'",
+    );
+    if (rows.isEmpty) throw StateError('No active journey');
+    return rows.first['id'] as String;
+  }
+
+  /// All journeys, oldest first.
+  Future<List<Journey>> loadJourneys() async => (await db.query(
+    'journeys',
+    orderBy: 'number',
+  )).map(_journeyFromRow).toList();
+
+  Future<Journey> activeJourney() async => _journeyFromRow(
+    (await db.query('journeys', where: "status = 'active'")).single,
+  );
+
+  /// Every journey with its counts, oldest first.
+  Future<List<JourneySummary>> journeySummaries() async {
+    final rows = await db.rawQuery('''
+      SELECT j.*,
+        (SELECT COUNT(*) FROM items i WHERE i.journey_id = j.id) AS n_items,
+        (SELECT COUNT(*) FROM items i
+           WHERE i.journey_id = j.id AND i.is_completed = 1) AS n_completed,
+        (SELECT COUNT(*) FROM memories m JOIN items i ON i.id = m.item_id
+           WHERE i.journey_id = j.id) AS n_memories,
+        (SELECT COUNT(*) FROM photos p
+           JOIN memories m ON m.id = p.memory_id
+           JOIN items i ON i.id = m.item_id
+           WHERE i.journey_id = j.id) AS n_photos
+      FROM journeys j ORDER BY j.number''');
+    return [
+      for (final r in rows)
+        JourneySummary(
+          journey: _journeyFromRow(r),
+          itemCount: r['n_items'] as int,
+          completedCount: r['n_completed'] as int,
+          memoryCount: r['n_memories'] as int,
+          photoCount: r['n_photos'] as int,
+        ),
+    ];
+  }
+
+  /// Archives the active journey (which must have all 1,000 things
+  /// completed) and starts the next one. Nothing is deleted: the old
+  /// journey keeps every item, memory and photo, and becomes read-only.
+  ///
+  /// With [reuseList], the new journey starts with a copy of the old
+  /// list's numbers, titles, descriptions and order — all not completed,
+  /// with no memories. Otherwise it starts empty.
+  Future<Journey> archiveAndStartNew({
+    required CalendarDate? startedOn,
+    required CalendarDate completedOn,
+    required Profile? snapshot,
+    required CalendarDate newStartedOn,
+    required bool reuseList,
+  }) {
+    return db.transaction((txn) async {
+      final oldId = await _activeJourneyId(txn);
+      final completed =
+          Sqflite.firstIntValue(
+            await txn.rawQuery(
+              'SELECT COUNT(*) FROM items '
+              'WHERE journey_id = ? AND is_completed = 1',
+              [oldId],
+            ),
+          ) ??
+          0;
+      if (completed < maxItems) throw JourneyNotCompleteException();
+
+      final now = _now();
+      await txn.rawUpdate(
+        '''
+        UPDATE journeys SET status = 'archived',
+          started_on = COALESCE(started_on, ?), completed_on = ?,
+          snapshot = ?, archived_at = ?
+        WHERE id = ?''',
+        [
+          startedOn?.toIso(),
+          completedOn.toIso(),
+          snapshot == null ? null : jsonEncode(snapshot.toJson()),
+          now,
+          oldId,
+        ],
+      );
+      final number =
+          (Sqflite.firstIntValue(
+                await txn.rawQuery('SELECT MAX(number) FROM journeys'),
+              ) ??
+              0) +
+          1;
+      final newRow = {
+        'id': newId(),
+        'number': number,
+        'status': 'active',
+        'started_on': newStartedOn.toIso(),
+        'created_at': now,
+      };
+      await txn.insert('journeys', newRow);
+      if (reuseList) {
+        final old = await txn.query(
+          'items',
+          where: 'journey_id = ?',
+          whereArgs: [oldId],
+          orderBy: 'position, rowid',
+        );
+        final batch = txn.batch();
+        for (final r in old) {
+          batch.insert('items', {
+            'id': newId(),
+            'journey_id': newRow['id'],
+            'number': r['number'],
+            'position': r['position'],
+            'title': r['title'],
+            'description': r['description'],
+            'is_completed': 0,
+            'completed_on': null,
+            'created_at': now,
+            'updated_at': now,
+          });
+        }
+        await batch.commit(noResult: true);
+      }
+      return _journeyFromRow(newRow);
+    });
+  }
+
+  /// Changes when the active journey started.
+  Future<void> setJourneyStart(CalendarDate? date) => db.rawUpdate(
+    "UPDATE journeys SET started_on = ? WHERE status = 'active'",
+    [date?.toIso()],
+  );
+
+  /// The completed items of [journeyId] in list order, each with the
+  /// size of its memories: enough to lay out a Life Album without
+  /// loading every memory at once.
+  Future<List<AlbumEntry>> albumOutline(String journeyId) async {
+    final items = (await db.query(
+      'items',
+      where: 'journey_id = ? AND is_completed = 1',
+      whereArgs: [journeyId],
+      orderBy: 'position, rowid',
+    )).map(_itemFromRow).toList();
+    final rows = await db.rawQuery(
+      '''
+      SELECT m.id, m.item_id, LENGTH(m.body) + LENGTH(m.title) AS len,
+        (SELECT COUNT(*) FROM photos p WHERE p.memory_id = m.id) AS photos
+      FROM memories m JOIN items i ON i.id = m.item_id
+      WHERE i.journey_id = ? AND i.is_completed = 1
+      ORDER BY m.position, m.rowid''',
+      [journeyId],
+    );
+    final byItem = <String, List<AlbumMemoryMeta>>{};
+    for (final r in rows) {
+      byItem
+          .putIfAbsent(r['item_id'] as String, () => [])
+          .add(
+            AlbumMemoryMeta(
+              id: r['id'] as String,
+              textLength: (r['len'] as int?) ?? 0,
+              photoCount: r['photos'] as int,
+            ),
+          );
+    }
+    return [
+      for (final i in items)
+        AlbumEntry(item: i, memories: byItem[i.id] ?? const []),
+    ];
+  }
+
+  // -------------------------------------------------------------- profile
+
+  Future<Profile> loadProfile() async {
+    final rows = await db.query('profile', where: 'id = 1');
+    if (rows.isEmpty) return const Profile();
+    final r = rows.first;
+    return Profile(
+      name: r['name'] as String,
+      nickname: r['nickname'] as String,
+      age: r['age'] as int?,
+      startedOn: r['started_on'] == null
+          ? null
+          : CalendarDate.parse(r['started_on'] as String),
+      bio: r['bio'] as String,
+      photo: r['photo'] as String?,
+    );
+  }
+
+  Future<void> saveProfile(Profile p) => db.insert('profile', {
+    'id': 1,
+    'name': p.name.trim(),
+    'nickname': p.nickname.trim(),
+    'age': p.age,
+    'started_on': p.startedOn?.toIso(),
+    'bio': p.bio.trim(),
+    'photo': p.photo,
+    'updated_at': _now(),
+  }, conflictAlgorithm: ConflictAlgorithm.replace);
 
   // ------------------------------------------------------------- settings
 
@@ -374,8 +676,30 @@ class ArchiveRepository {
     for (final r in rows) ...[r['file'] as String, r['thumb'] as String],
   ];
 
+  static Journey _journeyFromRow(Map<String, Object?> r) => Journey(
+    id: r['id'] as String,
+    number: r['number'] as int,
+    status: r['status'] == 'archived'
+        ? JourneyStatus.archived
+        : JourneyStatus.active,
+    startedOn: r['started_on'] == null
+        ? null
+        : CalendarDate.parse(r['started_on'] as String),
+    completedOn: r['completed_on'] == null
+        ? null
+        : CalendarDate.parse(r['completed_on'] as String),
+    snapshot: r['snapshot'] == null
+        ? null
+        : Profile.fromJson(jsonDecode(r['snapshot'] as String) as Map),
+    createdAt: DateTime.parse(r['created_at'] as String),
+    archivedAt: r['archived_at'] == null
+        ? null
+        : DateTime.parse(r['archived_at'] as String),
+  );
+
   static BucketItem _itemFromRow(Map<String, Object?> r) => BucketItem(
     id: r['id'] as String,
+    journeyId: r['journey_id'] as String,
     number: r['number'] as int,
     position: r['position'] as int,
     title: r['title'] as String,

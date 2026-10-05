@@ -11,16 +11,18 @@ class MemoryCard extends StatelessWidget {
     super.key,
     required this.memory,
     required this.index,
-    required this.onEdit,
-    required this.onDelete,
+    this.onEdit,
+    this.onDelete,
   });
 
   final Memory memory;
 
   /// 1-based number of this memory within its item.
   final int index;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+
+  /// Both null for a read-only memory (an archived journey).
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -53,14 +55,17 @@ class MemoryCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  PopupMenuButton<String>(
-                    tooltip: 'Memory options',
-                    onSelected: (v) => v == 'edit' ? onEdit() : onDelete(),
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'edit', child: Text('Edit')),
-                      PopupMenuItem(value: 'delete', child: Text('Delete')),
-                    ],
-                  ),
+                  if (onEdit != null && onDelete != null)
+                    PopupMenuButton<String>(
+                      tooltip: 'Memory options',
+                      onSelected: (v) => v == 'edit' ? onEdit!() : onDelete!(),
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'edit', child: Text('Edit')),
+                        PopupMenuItem(value: 'delete', child: Text('Delete')),
+                      ],
+                    )
+                  else
+                    const SizedBox(height: 40),
                 ],
               ),
               Padding(

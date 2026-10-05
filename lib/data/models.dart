@@ -64,6 +64,7 @@ class CalendarDate implements Comparable<CalendarDate> {
 class BucketItem {
   const BucketItem({
     required this.id,
+    required this.journeyId,
     required this.number,
     required this.position,
     required this.title,
@@ -76,6 +77,9 @@ class BucketItem {
 
   /// Stable unique ID (UUID). Never changes.
   final String id;
+
+  /// The journey this item belongs to. Each journey has its own list.
+  final String journeyId;
 
   /// The item's number, #1–#1000. Belongs to the item for its whole life:
   /// never renumbered when other items move or are deleted.
@@ -169,4 +173,125 @@ List<String> parseHashtags(String input) {
     if (!out.contains(tag)) out.add(tag);
   }
   return out;
+}
+
+enum JourneyStatus { active, archived }
+
+/// One cycle of up to 1,000 things. Exactly one journey is active (the
+/// list the user is working on); finished journeys are archived and
+/// kept forever, read-only, with all their items, memories and photos.
+class Journey {
+  const Journey({
+    required this.id,
+    required this.number,
+    required this.status,
+    required this.startedOn,
+    required this.completedOn,
+    required this.snapshot,
+    required this.createdAt,
+    required this.archivedAt,
+  });
+
+  final String id;
+
+  /// Journey 1, Journey 2, …
+  final int number;
+  final JourneyStatus status;
+
+  /// When the journey began, if known. Journey 1 uses the profile's
+  /// started date while it is active (see `AppStore.startOf`).
+  final CalendarDate? startedOn;
+
+  /// The day the journey was finished (set when it is archived).
+  final CalendarDate? completedOn;
+
+  /// The profile as it was when the journey was archived, so a Life
+  /// Album shows the name, bio and photo from that period.
+  final Profile? snapshot;
+  final DateTime createdAt;
+  final DateTime? archivedAt;
+
+  bool get isActive => status == JourneyStatus.active;
+  bool get isArchived => status == JourneyStatus.archived;
+}
+
+/// Counts for one journey, for history lists and summaries.
+class JourneySummary {
+  const JourneySummary({
+    required this.journey,
+    required this.itemCount,
+    required this.completedCount,
+    required this.memoryCount,
+    required this.photoCount,
+  });
+
+  final Journey journey;
+  final int itemCount;
+  final int completedCount;
+  final int memoryCount;
+  final int photoCount;
+}
+
+/// The user's private profile. Every field is optional.
+class Profile {
+  const Profile({
+    this.name = '',
+    this.nickname = '',
+    this.age,
+    this.startedOn,
+    this.bio = '',
+    this.photo,
+  });
+
+  final String name;
+  final String nickname;
+  final int? age;
+
+  /// When the user began their 1000 Things (chosen by the user; never
+  /// assumed from the install date).
+  final CalendarDate? startedOn;
+  final String bio;
+
+  /// Profile picture, relative to the archive folder (`profile/<id>.jpg`).
+  final String? photo;
+
+  bool get isEmpty =>
+      name.isEmpty &&
+      nickname.isEmpty &&
+      age == null &&
+      startedOn == null &&
+      bio.isEmpty &&
+      photo == null;
+
+  /// The name to greet the user with.
+  String get displayName => nickname.isNotEmpty ? nickname : name;
+
+  Profile copyWith({String? photo, bool clearPhoto = false}) => Profile(
+    name: name,
+    nickname: nickname,
+    age: age,
+    startedOn: startedOn,
+    bio: bio,
+    photo: clearPhoto ? null : (photo ?? this.photo),
+  );
+
+  Map<String, Object?> toJson() => {
+    'name': name,
+    'nickname': nickname,
+    'age': age,
+    'startedOn': startedOn?.toIso(),
+    'bio': bio,
+    'photo': photo,
+  };
+
+  factory Profile.fromJson(Map<dynamic, dynamic> j) => Profile(
+    name: j['name'] as String? ?? '',
+    nickname: j['nickname'] as String? ?? '',
+    age: j['age'] as int?,
+    startedOn: j['startedOn'] == null
+        ? null
+        : CalendarDate.parse(j['startedOn'] as String),
+    bio: j['bio'] as String? ?? '',
+    photo: j['photo'] as String?,
+  );
 }

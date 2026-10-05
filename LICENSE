@@ -28,4 +28,8 @@ MIT License above; all rights reserved. If you publish a modified version
 of this app, please use your own name and icon.
 
 The Fredoka font (assets/fonts/) is licensed under the SIL Open Font
-License 1.1; see assets/fonts/OFL-Fredoka.txt.
+License 1.1; see assets/fonts/OFL-Fredoka.txt. The Noto Sans fonts used
+in Life Album PDFs (assets/fonts/pdf/, including a static Fredoka
+instance and subsets of Noto Sans Math and Noto Sans Symbols 2) are also
+licensed under the SIL Open Font License 1.1; see
+assets/fonts/pdf/OFL-NotoSans.txt.

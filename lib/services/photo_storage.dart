@@ -144,10 +144,31 @@ class PhotoStorage {
 /// Decodes [bytes] at thumbnail size (natively, honouring EXIF rotation)
 /// and encodes a JPEG off the UI thread. Returns the photo's size too.
 Future<(int?, int?, Uint8List)> _thumbnail(Uint8List bytes) async {
+  final (w, h, jpeg) = await shrinkImage(bytes, thumbMaxSide, quality: 82);
+  return (w, h, jpeg.bytes);
+}
+
+/// A JPEG made by [shrinkImage].
+class ShrunkImage {
+  const ShrunkImage(this.bytes, this.width, this.height);
+
+  final Uint8List bytes;
+  final int width;
+  final int height;
+}
+
+/// Decodes [bytes] so its longest side is at most [maxSide] (natively,
+/// honouring EXIF rotation; never upscaled) and encodes it as a JPEG on a
+/// background isolate. Returns the original size and the new image.
+Future<(int, int, ShrunkImage)> shrinkImage(
+  Uint8List bytes,
+  int maxSide, {
+  int quality = 80,
+}) async {
   final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
   final descriptor = await ui.ImageDescriptor.encoded(buffer);
   final w = descriptor.width, h = descriptor.height;
-  final scale = thumbMaxSide / (w > h ? w : h);
+  final scale = maxSide / (w > h ? w : h);
   final codec = await descriptor.instantiateCodec(
     targetWidth: scale < 1 ? (w * scale).round() : null,
     targetHeight: scale < 1 ? (h * scale).round() : null,
@@ -161,19 +182,33 @@ Future<(int?, int?, Uint8List)> _thumbnail(Uint8List bytes) async {
   descriptor.dispose();
   buffer.dispose();
 
-  final pixels = rgba.buffer.asUint8List();
-  final jpeg = await Isolate.run(
+  final jpeg = await encodeRgbaAsJpeg(rgba, tw, th, quality: quality);
+  return (w, h, ShrunkImage(jpeg, tw, th));
+}
+
+/// Encodes raw RGBA pixels as a JPEG on a background isolate.
+Future<Uint8List> encodeRgbaAsJpeg(
+  ByteData rgba,
+  int width,
+  int height, {
+  int quality = 85,
+}) {
+  final pixels = rgba.buffer.asUint8List(
+    rgba.offsetInBytes,
+    rgba.lengthInBytes,
+  );
+  return Isolate.run(
     () => Uint8List.fromList(
       img.encodeJpg(
         img.Image.fromBytes(
-          width: tw,
-          height: th,
+          width: width,
+          height: height,
           bytes: pixels.buffer,
+          bytesOffset: pixels.offsetInBytes,
           numChannels: 4,
         ),
-        quality: 82,
+        quality: quality,
       ),
     ),
   );
-  return (w, h, jpeg);
 }

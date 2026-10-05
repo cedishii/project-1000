@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # Version shown in the app: <version name>+<build number>.
 # Increase the build number for every release (Android requires it).
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ^3.13.5
@@ -24,6 +24,7 @@ dependencies:
   share_plus: ^13.3.1        # hand an exported backup to Files/Drive/etc.
   intl: ^0.20.3              # date and number formatting
   package_info_plus: ^10.2.2 # version shown on the About screen
+  pdf: ^3.13.1               # Life Album PDF export
 
 dev_dependencies:
   flutter_test:
@@ -40,6 +41,7 @@ flutter:
   assets:
     - assets/branding/emblem.png
     - assets/branding/logo_original.png
+    - assets/fonts/pdf/   # fonts embedded in exported Life Album PDFs
   fonts:
     - family: Fredoka
       fonts:

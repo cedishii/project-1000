@@ -79,13 +79,15 @@ class ItemTile extends StatelessWidget {
     required this.item,
     required this.memoryCount,
     required this.onTap,
-    required this.onToggle,
+    this.onToggle,
   });
 
   final BucketItem item;
   final int memoryCount;
   final VoidCallback onTap;
-  final VoidCallback onToggle;
+
+  /// Null for a read-only row (an archived journey).
+  final VoidCallback? onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -150,13 +152,22 @@ class ItemTile extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: item.isCompleted
-                    ? 'Mark as not completed'
-                    : 'Mark as completed',
-                onPressed: onToggle,
-                icon: CompletionMark(completed: item.isCompleted),
-              ),
+              if (onToggle != null)
+                IconButton(
+                  tooltip: item.isCompleted
+                      ? 'Mark as not completed'
+                      : 'Mark as completed',
+                  onPressed: onToggle,
+                  icon: CompletionMark(completed: item.isCompleted),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Semantics(
+                    label: item.isCompleted ? 'Completed' : 'Not completed',
+                    child: CompletionMark(completed: item.isCompleted),
+                  ),
+                ),
             ],
           ),
         ),
@@ -165,16 +176,19 @@ class ItemTile extends StatelessWidget {
   }
 }
 
-/// Completed / remaining / percentage.
+/// Completed / remaining / percentage, with an optional compact level
+/// row underneath.
 class ProgressHeader extends StatelessWidget {
   const ProgressHeader({
     super.key,
     required this.completed,
     required this.listed,
+    this.footer,
   });
 
   final int completed;
   final int listed;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -184,69 +198,74 @@ class ProgressHeader extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
-        child: Row(
+        child: Column(
           children: [
-            SizedBox(
-              width: 76,
-              height: 76,
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: fraction),
-                duration: const Duration(milliseconds: 600),
-                curve: Curves.easeOutCubic,
-                builder: (context, value, _) => Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CircularProgressIndicator(
-                      value: value == 0 ? 0 : value.clamp(0.012, 1.0),
-                      strokeWidth: 8,
-                      strokeCap: StrokeCap.round,
-                      backgroundColor: scheme.surfaceContainer,
-                    ),
-                    Center(
-                      child: Text(
-                        percent(completed, maxItems),
-                        style: display(15, color: scheme.primary),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 18),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text.rich(
-                    TextSpan(
+            Row(
+              children: [
+                SizedBox(
+                  width: 76,
+                  height: 76,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: fraction),
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, _) => Stack(
+                      fit: StackFit.expand,
                       children: [
-                        TextSpan(
-                          text: count(completed),
-                          style: display(30, color: scheme.secondary),
+                        CircularProgressIndicator(
+                          value: value == 0 ? 0 : value.clamp(0.012, 1.0),
+                          strokeWidth: 8,
+                          strokeCap: StrokeCap.round,
+                          backgroundColor: scheme.surfaceContainer,
                         ),
-                        TextSpan(
-                          text: ' / ${count(maxItems)}',
-                          style: display(
-                            18,
-                            weight: 500,
-                            color: scheme.onSurfaceVariant,
+                        Center(
+                          child: Text(
+                            percent(completed, maxItems),
+                            style: display(15, color: scheme.primary),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  Text('completed', style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${count(maxItems - completed)} remaining · '
-                    '${count(listed)} written down',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: count(completed),
+                              style: display(30, color: scheme.secondary),
+                            ),
+                            TextSpan(
+                              text: ' / ${count(maxItems)}',
+                              style: display(
+                                18,
+                                weight: 500,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text('completed', style: theme.textTheme.bodyMedium),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${count(maxItems - completed)} remaining · '
+                        '${count(listed)} written down',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+            if (footer != null) ...[const Divider(height: 22), footer!],
           ],
         ),
       ),

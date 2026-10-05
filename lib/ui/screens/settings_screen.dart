@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../backup_flows.dart';
 import '../store_scope.dart';
 import 'about_screen.dart';
+import 'profile_screen.dart';
 import 'reorder_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -42,12 +43,23 @@ class SettingsScreen extends StatelessWidget {
               onSelectionChanged: (s) => store.setThemeMode(s.first),
             ),
           ),
+          const _Header('You'),
+          ListTile(
+            leading: const Icon(Icons.account_circle_outlined),
+            title: const Text('Profile'),
+            subtitle: const Text('Level, journeys and Life Albums'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            ),
+          ),
           const _Header('Data'),
           ListTile(
             leading: const Icon(Icons.upload_file_outlined),
             title: const Text('Export backup'),
             subtitle: const Text(
-              'Save everything — list, memories and photos — to one file',
+              'Save everything — every journey, memory, photo and your '
+              'profile — to one file',
             ),
             onTap: () => exportFlow(context),
           ),

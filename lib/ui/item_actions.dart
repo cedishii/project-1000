@@ -3,11 +3,18 @@ import 'package:flutter/material.dart';
 import '../data/models.dart';
 import 'feedback.dart';
 import 'formatting.dart';
+import 'level_up.dart';
+import 'screens/journey_complete_screen.dart';
 import 'store_scope.dart';
 import 'theme.dart';
 
 /// Marks an item completed (asking for the date) or not completed
 /// (asking for confirmation). The item never moves in the list.
+///
+/// Completing a thing earns 1,000 EXP; crossing a level shows a brief
+/// level-up note, and the 1,000th thing opens the journey-complete
+/// screen. Un-completing simply recalculates (EXP is always derived from
+/// the list, so it can't be farmed).
 Future<void> toggleCompletion(BuildContext context, BucketItem item) async {
   final store = StoreScope.read(context);
   if (item.isCompleted) {
@@ -27,7 +34,24 @@ Future<void> toggleCompletion(BuildContext context, BucketItem item) async {
 
   final date = await pickCompletionDate(context, item);
   if (date == null || !context.mounted) return;
-  await guard(context, () => store.setCompleted(item.id, true, on: date));
+  final before = store.progression;
+  final ok = await guard(
+    context,
+    () => store.setCompleted(item.id, true, on: date),
+  );
+  if (!ok || !context.mounted) return;
+  final after = store.progression;
+  if (after.isComplete && !before.isComplete) {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const JourneyCompleteScreen(),
+      ),
+    );
+  } else if (after.level > before.level) {
+    showLevelUp(context, from: before.level, to: after.level);
+  }
 }
 
 /// Bottom sheet: "Completed on [date]". Defaults to today, or to the

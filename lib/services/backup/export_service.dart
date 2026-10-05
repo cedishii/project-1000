@@ -12,6 +12,7 @@ import 'backup_format.dart';
 class ExportResult {
   ExportResult({
     required this.file,
+    required this.journeys,
     required this.items,
     required this.memories,
     required this.photos,
@@ -19,6 +20,9 @@ class ExportResult {
   });
 
   final File file;
+  final int journeys;
+
+  /// Things on all journeys' lists.
   final int items;
   final int memories;
   final int photos;
@@ -42,14 +46,25 @@ Future<ExportResult> exportBackup({
 }) async {
   final exportedAt = (now ?? DateTime.now());
   final data = await db.transaction((txn) => _snapshot(txn));
+  final journeys = (data['journeys'] as List).cast<Map>();
+  final allItems = [for (final j in journeys) ...(j['items'] as List)];
   final media = <String>[
-    for (final item in data['items'] as List)
+    for (final item in allItems)
       for (final m in (item as Map)['memories'] as List)
         for (final ph in (m as Map)['photos'] as List) ...[
           (ph as Map)['file'] as String,
           ph['thumb'] as String,
         ],
   ];
+  final photoCount = media.length ~/ 2;
+  // Profile pictures: the current one and those kept with each archived
+  // journey.
+  for (final photo in [
+    (data['profile'] as Map?)?['photo'],
+    for (final j in journeys) (j['snapshot'] as Map?)?['photo'],
+  ]) {
+    if (photo is String) media.add(photo);
+  }
 
   await outDir.create(recursive: true);
   // Remove earlier exports so old copies don't pile up in app storage.
@@ -74,11 +89,11 @@ Future<ExportResult> exportBackup({
       'appVersion': appVersion,
       'exportedAt': exportedAt.toUtc().toIso8601String(),
       'counts': {
-        'items': (data['items'] as List).length,
-        'memories': [
-          for (final i in data['items'] as List) ...(i as Map)['memories'],
-        ].length,
-        'photos': media.length ~/ 2,
+        'journeys': journeys.length,
+        'items': allItems.length,
+        'memories': [for (final i in allItems) ...(i as Map)['memories']]
+            .length,
+        'photos': photoCount,
       },
     },
   );
@@ -89,6 +104,7 @@ Future<ExportResult> exportBackup({
   final counts = job.manifestBase['counts'] as Map;
   return ExportResult(
     file: File(outPath),
+    journeys: counts['journeys'] as int,
     items: counts['items'] as int,
     memories: counts['memories'] as int,
     photos: counts['photos'] as int,
@@ -97,8 +113,11 @@ Future<ExportResult> exportBackup({
 }
 
 /// Everything in the database, as the data.json structure.
-/// Items are listed in the user's order.
+/// Journeys are listed oldest first; each journey's items in the user's
+/// order.
 Future<Map<String, Object?>> _snapshot(Transaction txn) async {
+  final journeys = await txn.query('journeys', orderBy: 'number');
+  final profile = await txn.query('profile');
   final items = await txn.query('items', orderBy: 'position, rowid');
   final memories = await txn.query('memories', orderBy: 'position, rowid');
   final tags = await txn.query('memory_tags', orderBy: 'position');
@@ -139,22 +158,50 @@ Future<Map<String, Object?>> _snapshot(Transaction txn) async {
     });
   }
 
+  final itemsBy = <String, List<Map<String, Object?>>>{};
+  for (final i in items) {
+    itemsBy.putIfAbsent(i['journey_id'] as String, () => []).add({
+      'id': i['id'],
+      'number': i['number'],
+      'position': i['position'],
+      'title': i['title'],
+      'description': i['description'],
+      'isCompleted': i['is_completed'] == 1,
+      'completedOn': i['completed_on'],
+      'createdAt': i['created_at'],
+      'updatedAt': i['updated_at'],
+      'memories': memoriesBy[i['id']] ?? const [],
+    });
+  }
+
   return {
     'dataFormatVersion': dataFormatVersion,
     'settings': {for (final s in settings) s['key'] as String: s['value']},
-    'items': [
-      for (final i in items)
+    'profile': profile.isEmpty
+        ? null
+        : {
+            'name': profile.first['name'],
+            'nickname': profile.first['nickname'],
+            'age': profile.first['age'],
+            'startedOn': profile.first['started_on'],
+            'bio': profile.first['bio'],
+            'photo': profile.first['photo'],
+            'updatedAt': profile.first['updated_at'],
+          },
+    'journeys': [
+      for (final j in journeys)
         {
-          'id': i['id'],
-          'number': i['number'],
-          'position': i['position'],
-          'title': i['title'],
-          'description': i['description'],
-          'isCompleted': i['is_completed'] == 1,
-          'completedOn': i['completed_on'],
-          'createdAt': i['created_at'],
-          'updatedAt': i['updated_at'],
-          'memories': memoriesBy[i['id']] ?? const [],
+          'id': j['id'],
+          'number': j['number'],
+          'status': j['status'],
+          'startedOn': j['started_on'],
+          'completedOn': j['completed_on'],
+          'snapshot': j['snapshot'] == null
+              ? null
+              : jsonDecode(j['snapshot'] as String),
+          'createdAt': j['created_at'],
+          'archivedAt': j['archived_at'],
+          'items': itemsBy[j['id']] ?? const [],
         },
     ],
   };

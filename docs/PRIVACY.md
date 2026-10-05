@@ -14,8 +14,11 @@ Project: 1000 is a personal journal. Privacy is a core feature.
 
 ## Where your data is
 
-Your list, memories, hashtags and photos are stored only in the app's
-private storage on your phone. Other apps cannot read it.
+Your list, memories, hashtags, photos, profile (name, nickname, age,
+bio, profile picture) and journey history are stored only in the app's
+private storage on your phone. Other apps cannot read it. Life Album
+PDFs are created on the phone and only leave it if you save or share
+them.
 
 When you add a photo, the app makes its own copy (resized to at most
 2560 px). The original in your gallery is not changed or deleted, and
