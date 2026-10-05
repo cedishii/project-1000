@@ -1,0 +1,70 @@
+name: project_1000
+description: "Project: 1000 — 1000 Things Before I Die. A private, offline bucket list and memory journal."
+publish_to: 'none'
+
+# Version shown in the app: <version name>+<build number>.
+# Increase the build number for every release (Android requires it).
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite: ^2.4.4            # local SQLite database
+  path_provider: ^2.1.6      # app's private documents folder
+  path: ^1.9.1
+  uuid: ^4.6.0               # stable unique IDs
+  image_picker: ^1.2.3       # choose photos from the gallery / camera
+  image: ^4.10.1             # thumbnail encoding
+  archive: ^4.3.0            # backup .zip files
+  crypto: ^3.0.7             # SHA-256 checksums for backup integrity
+  file_picker: ^13.1.0       # choose a backup file to import
+  share_plus: ^13.3.1        # hand an exported backup to Files/Drive/etc.
+  intl: ^0.20.3              # date and number formatting
+  package_info_plus: ^10.2.2 # version shown on the About screen
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:          # on-device end-to-end tests
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  sqflite_common_ffi: ^2.4.3 # runs the real database code in desktop tests
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.8
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/branding/emblem.png
+    - assets/branding/logo_original.png
+  fonts:
+    - family: Fredoka
+      fonts:
+        - asset: assets/fonts/Fredoka.ttf
+
+# App icons generated from the official logo (see tool/prepare_branding.dart).
+# Regenerate with: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/branding/icon_square.png
+  adaptive_icon_background: "#29302E"
+  adaptive_icon_foreground: assets/branding/icon_adaptive_foreground.png
+  remove_alpha_ios: true
+  min_sdk_android: 24
+
+# Splash screen. Regenerate with: dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#FBF8F1"
+  color_dark: "#1C2120"
+  image: assets/branding/splash_emblem.png
+  android_12:
+    color: "#FBF8F1"
+    color_dark: "#1C2120"
+    image: assets/branding/splash_emblem.png
+  ios: true
+  android: true
+  web: false
