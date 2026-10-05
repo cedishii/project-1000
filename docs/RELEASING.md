@@ -5,11 +5,11 @@
 The version is in `pubspec.yaml`:
 
 ```yaml
-version: 1.0.0+1   # <version name>+<build number>
+version: 1.1.0+2   # <version name>+<build number>
 ```
 
-For every release, raise the version name (1.0.0 → 1.0.1 for fixes,
-1.1.0 for features) **and** the build number (+1 → +2). Android refuses
+For every release, raise the version name (1.1.0 → 1.1.1 for fixes,
+1.2.0 for features) **and** the build number (+2 → +3). Android refuses
 to install an update whose build number is not higher. Add an entry to
 `CHANGELOG.md`.
 
@@ -85,13 +85,13 @@ aapt dump permissions build/app/outputs/flutter-apk/app-release.apk
 ### Publish on GitHub Releases
 
 ```bash
-git tag v1.0.0
+git tag v1.1.0
 git push origin main --tags
-gh release create v1.0.0 \
-  dist/project-1000-v1.0.0-arm64-v8a.apk \
-  dist/project-1000-v1.0.0-armeabi-v7a.apk \
-  dist/project-1000-v1.0.0-universal.apk \
-  --title "Project: 1000 v1.0.0" --notes-file dist/RELEASE_NOTES.md
+gh release create v1.1.0 \
+  dist/project-1000-v1.1.0-arm64-v8a.apk \
+  dist/project-1000-v1.1.0-armeabi-v7a.apk \
+  dist/project-1000-v1.1.0-universal.apk \
+  --title "Project: 1000 v1.1.0" --notes-file dist/RELEASE_NOTES.md
 ```
 
 (Copy and rename the APKs into `dist/` first. `dist/` is ignored by
