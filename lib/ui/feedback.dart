@@ -1,8 +1,8 @@
-import 'dart:developer' as dev;
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:project_1000/core/log.dart';
 
 import '../data/archive_repository.dart';
 import '../data/models.dart';
@@ -43,7 +43,7 @@ bool isOutOfSpace(Object error) {
 
 /// Logs [error] for developers and shows a friendly snackbar.
 void showError(BuildContext context, Object error, [StackTrace? stack]) {
-  dev.log('Operation failed', error: error, stackTrace: stack, name: 'app');
+  logError('Operation failed', error, stack);
   if (!context.mounted) return;
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
@@ -82,13 +82,15 @@ Future<bool> confirm(
       content: Text(message),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel')),
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
           style: destructive
               ? FilledButton.styleFrom(
                   backgroundColor: scheme.error,
-                  foregroundColor: scheme.onError)
+                  foregroundColor: scheme.onError,
+                )
               : null,
           onPressed: () => Navigator.pop(context, true),
           child: Text(confirmLabel),

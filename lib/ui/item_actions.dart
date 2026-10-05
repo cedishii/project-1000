@@ -17,7 +17,7 @@ Future<void> toggleCompletion(BuildContext context, BucketItem item) async {
       message: item.completedOn == null
           ? 'You can mark it completed again any time.'
           : 'The completion date (${longDate(item.completedOn!)}) will be '
-              'kept on record, and offered again if you complete it later.',
+                'kept on record, and offered again if you complete it later.',
       confirmLabel: 'Mark not completed',
     );
     if (!ok || !context.mounted) return;
@@ -33,7 +33,9 @@ Future<void> toggleCompletion(BuildContext context, BucketItem item) async {
 /// Bottom sheet: "Completed on [date]". Defaults to today, or to the
 /// earlier completion date if the item had one.
 Future<CalendarDate?> pickCompletionDate(
-    BuildContext context, BucketItem item) {
+  BuildContext context,
+  BucketItem item,
+) {
   return showModalBottomSheet<CalendarDate>(
     context: context,
     showDragHandle: true,
@@ -61,7 +63,9 @@ class _CompletionSheetState extends State<_CompletionSheet> {
       lastDate: DateTime(2200),
       helpText: 'Completed on',
     );
-    if (picked != null) setState(() => _date = CalendarDate.fromDateTime(picked));
+    if (picked != null) {
+      setState(() => _date = CalendarDate.fromDateTime(picked));
+    }
   }
 
   @override
@@ -74,8 +78,10 @@ class _CompletionSheetState extends State<_CompletionSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.item.label,
-                style: display(18, color: theme.colorScheme.secondary)),
+            Text(
+              widget.item.label,
+              style: display(18, color: theme.colorScheme.secondary),
+            ),
             const SizedBox(height: 4),
             Text(widget.item.title, style: display(22)),
             const SizedBox(height: 20),
@@ -84,7 +90,10 @@ class _CompletionSheetState extends State<_CompletionSheet> {
               leading: const Icon(Icons.event_available_rounded),
               title: const Text('Completed on'),
               subtitle: Text(longDate(_date)),
-              trailing: TextButton(onPressed: _change, child: const Text('Change')),
+              trailing: TextButton(
+                onPressed: _change,
+                child: const Text('Change'),
+              ),
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -110,7 +119,8 @@ Future<bool> deleteItemFlow(BuildContext context, BucketItem item) async {
   final ok = await confirm(
     context,
     title: 'Delete ${item.label}?',
-    message: '"${item.title}"'
+    message:
+        '"${item.title}"'
         '${memories > 0 ? ' and its ${plural(memories, 'memory', 'memories')} (with photos)' : ''}'
         ' will be permanently deleted. This can\'t be undone.',
     confirmLabel: 'Delete',

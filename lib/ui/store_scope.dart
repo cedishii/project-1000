@@ -6,7 +6,7 @@ import '../state/app_store.dart';
 /// when it changes.
 class StoreScope extends InheritedNotifier<AppStore> {
   const StoreScope({super.key, required AppStore store, required super.child})
-      : super(notifier: store);
+    : super(notifier: store);
 
   /// The store, rebuilding the caller when it changes.
   static AppStore of(BuildContext context) =>

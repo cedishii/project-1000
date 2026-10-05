@@ -17,8 +17,13 @@ void main() {
   tearDown(() => archive.dispose());
 
   Future<void> addFive() async {
-    for (final t in ['Learn Japanese', 'Visit Japan', 'Learn to swim',
-        'See a concert', 'Build my own house']) {
+    for (final t in [
+      'Learn Japanese',
+      'Visit Japan',
+      'Learn to swim',
+      'See a concert',
+      'Build my own house',
+    ]) {
       await store.addItem(t, '');
     }
   }
@@ -48,8 +53,13 @@ void main() {
     // 6–7. Restart; order unchanged.
     store = await archive.restart();
     expect(numbersOf(store), [1, 2, 3, 4, 5]);
-    expect(store.items.map((i) => i.isCompleted),
-        [true, false, false, true, false]);
+    expect(store.items.map((i) => i.isCompleted), [
+      true,
+      false,
+      false,
+      true,
+      false,
+    ]);
 
     // 8–9. Add another; it goes to the end as #006.
     await store.addItem('Write a book', '');
@@ -76,19 +86,21 @@ void main() {
     expect(store.items[2].description, 'x');
   });
 
-  test('deleting keeps other numbers; the freed number is reused at the end',
-      () async {
-    await addFive();
-    await store.deleteItem(store.items[2].id); // #003
-    expect(numbersOf(store), [1, 2, 4, 5]);
-    store = await archive.restart();
-    expect(numbersOf(store), [1, 2, 4, 5]);
+  test(
+    'deleting keeps other numbers; the freed number is reused at the end',
+    () async {
+      await addFive();
+      await store.deleteItem(store.items[2].id); // #003
+      expect(numbersOf(store), [1, 2, 4, 5]);
+      store = await archive.restart();
+      expect(numbersOf(store), [1, 2, 4, 5]);
 
-    final added = await store.addItem('New dream', '');
-    expect(added.number, 3);
-    // Appended at the end — never inserted by number.
-    expect(numbersOf(store), [1, 2, 4, 5, 3]);
-  });
+      final added = await store.addItem('New dream', '');
+      expect(added.number, 3);
+      // Appended at the end — never inserted by number.
+      expect(numbersOf(store), [1, 2, 4, 5, 3]);
+    },
+  );
 
   test('un-completing keeps the previous completion date', () async {
     await addFive();
@@ -112,21 +124,29 @@ void main() {
     expect(store.items.length, 1000);
     expect(store.items.first.label, '#001');
     expect(store.items.last.label, '#1000');
-    expect(() => store.addItem('One too many', ''),
-        throwsA(isA<ListFullException>()));
+    expect(
+      () => store.addItem('One too many', ''),
+      throwsA(isA<ListFullException>()),
+    );
   });
 
-  test('a bad order is rejected and leaves the saved order untouched',
-      () async {
-    await addFive();
-    final ids = store.items.map((i) => i.id).toList();
-    await expectLater(
-        store.saveOrder(ids.sublist(1)), throwsA(isA<StateError>()));
-    await expectLater(store.saveOrder([...ids.sublist(1), ids[1]]),
-        throwsA(isA<StateError>()));
-    store = await archive.restart();
-    expect(numbersOf(store), [1, 2, 3, 4, 5]);
-  });
+  test(
+    'a bad order is rejected and leaves the saved order untouched',
+    () async {
+      await addFive();
+      final ids = store.items.map((i) => i.id).toList();
+      await expectLater(
+        store.saveOrder(ids.sublist(1)),
+        throwsA(isA<StateError>()),
+      );
+      await expectLater(
+        store.saveOrder([...ids.sublist(1), ids[1]]),
+        throwsA(isA<StateError>()),
+      );
+      store = await archive.restart();
+      expect(numbersOf(store), [1, 2, 3, 4, 5]);
+    },
+  );
 
   test('theme setting persists', () async {
     await store.setThemeMode(ThemeMode.dark);

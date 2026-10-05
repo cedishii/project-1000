@@ -1,8 +1,7 @@
-import 'dart:developer' as dev;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:project_1000/core/log.dart';
 
 import '../../data/archive_repository.dart';
 import '../../data/models.dart';
@@ -75,26 +74,29 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
       picked = source == ImageSource.camera
           ? [
               ?await picker.pickImage(
-                  source: ImageSource.camera,
-                  maxWidth: photoMaxSide.toDouble(),
-                  maxHeight: photoMaxSide.toDouble(),
-                  imageQuality: 88)
+                source: ImageSource.camera,
+                maxWidth: photoMaxSide.toDouble(),
+                maxHeight: photoMaxSide.toDouble(),
+                imageQuality: 88,
+              ),
             ]
           : await picker.pickMultiImage(
               maxWidth: photoMaxSide.toDouble(),
               maxHeight: photoMaxSide.toDouble(),
-              imageQuality: 88);
+              imageQuality: 88,
+            );
     } on PlatformException catch (e, s) {
-      dev.log('Photo picker failed', error: e, stackTrace: s, name: 'photos');
+      logError('Photo picker failed', e, s);
       if (!mounted) return;
       final denied = e.code.contains('denied') || e.code.contains('access');
       showMessage(
-          context,
-          denied
-              ? 'Project: 1000 isn\'t allowed to use your '
+        context,
+        denied
+            ? 'Project: 1000 isn\'t allowed to use your '
                   '${source == ImageSource.camera ? 'camera' : 'photos'}. '
                   'You can allow it in your phone\'s Settings.'
-              : 'Photos couldn\'t be opened. Please try again.');
+            : 'Photos couldn\'t be opened. Please try again.',
+      );
       return;
     }
     if (picked.isEmpty || !mounted) return;
@@ -113,7 +115,7 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
           _changed = true;
         });
       } catch (e, s) {
-        dev.log('Could not add photo', error: e, stackTrace: s, name: 'photos');
+        logError('Could not add photo', e, s);
         failed++;
         if (isOutOfSpace(e)) {
           if (mounted) showError(context, e, s);
@@ -124,8 +126,10 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
     if (!mounted) return;
     setState(() => _addingPhotos = false);
     if (failed > 0) {
-      showMessage(context,
-          '${plural(failed, 'photo')} couldn\'t be added (unsupported or unreadable file).');
+      showMessage(
+        context,
+        '${plural(failed, 'photo')} couldn\'t be added (unsupported or unreadable file).',
+      );
     }
   }
 
@@ -134,24 +138,27 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.photo_library_outlined),
-            title: const Text('Choose from gallery'),
-            onTap: () {
-              Navigator.pop(context);
-              _addPhotos(ImageSource.gallery);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_camera_outlined),
-            title: const Text('Take a photo'),
-            onTap: () {
-              Navigator.pop(context);
-              _addPhotos(ImageSource.camera);
-            },
-          ),
-        ]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from gallery'),
+              onTap: () {
+                Navigator.pop(context);
+                _addPhotos(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take a photo'),
+              onTap: () {
+                Navigator.pop(context);
+                _addPhotos(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -198,16 +205,18 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
     final store = StoreScope.read(context);
     final ok = await guard(
       context,
-      () => store.saveMemory(MemoryDraft(
-        id: widget.memory?.id,
-        itemId: widget.item.id,
-        title: _title.text,
-        body: _body.text,
-        date: _date,
-        location: _location.text,
-        hashtags: _tags,
-        photos: _photos,
-      )),
+      () => store.saveMemory(
+        MemoryDraft(
+          id: widget.memory?.id,
+          itemId: widget.item.id,
+          title: _title.text,
+          body: _body.text,
+          date: _date,
+          location: _location.text,
+          hashtags: _tags,
+          photos: _photos,
+        ),
+      ),
     );
     if (!mounted) return;
     if (ok) {
@@ -232,13 +241,15 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
           if (!_saving) _discardPending();
           return;
         }
-        final discard = await confirm(context,
-            title: _isNew ? 'Discard this memory?' : 'Discard your changes?',
-            message: _isNew
-                ? 'What you wrote hasn\'t been saved.'
-                : 'The memory stays as it was before you started editing.',
-            confirmLabel: 'Discard',
-            destructive: true);
+        final discard = await confirm(
+          context,
+          title: _isNew ? 'Discard this memory?' : 'Discard your changes?',
+          message: _isNew
+              ? 'What you wrote hasn\'t been saved.'
+              : 'The memory stays as it was before you started editing.',
+          confirmLabel: 'Discard',
+          destructive: true,
+        );
         if (discard && context.mounted) {
           await _discardPending();
           if (context.mounted) Navigator.pop(context);
@@ -256,7 +267,8 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2))
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Text('Save'),
               ),
             ),
@@ -265,10 +277,12 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
           children: [
-            Text('${widget.item.label}  ${widget.item.title}',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: display(16, weight: 500, color: scheme.secondary)),
+            Text(
+              '${widget.item.label}  ${widget.item.title}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: display(16, weight: 500, color: scheme.secondary),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: _title,
@@ -315,8 +329,9 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
                           iconSize: 16,
                           visualDensity: VisualDensity.compact,
                           style: IconButton.styleFrom(
-                              backgroundColor: scheme.inverseSurface,
-                              foregroundColor: scheme.onInverseSurface),
+                            backgroundColor: scheme.inverseSurface,
+                            foregroundColor: scheme.onInverseSurface,
+                          ),
                           onPressed: () => _removePhoto(_photos[i]),
                           icon: const Icon(Icons.close_rounded),
                         ),
@@ -330,14 +345,16 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
                     style: OutlinedButton.styleFrom(
                       padding: EdgeInsets.zero,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     onPressed: _addingPhotos ? null : _choosePhotoSource,
                     child: _addingPhotos
                         ? const SizedBox(
                             width: 22,
                             height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2))
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -356,8 +373,10 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
               leading: const Icon(Icons.event_outlined),
               title: const Text('Date'),
               subtitle: Text(longDate(_date)),
-              trailing:
-                  TextButton(onPressed: _pickDate, child: const Text('Change')),
+              trailing: TextButton(
+                onPressed: _pickDate,
+                child: const Text('Change'),
+              ),
             ),
             TextField(
               controller: _location,

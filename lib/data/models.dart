@@ -22,7 +22,10 @@ class CalendarDate implements Comparable<CalendarDate> {
     final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(s);
     if (m == null) throw FormatException('Invalid date', s);
     final d = CalendarDate(
-        int.parse(m[1]!), int.parse(m[2]!), int.parse(m[3]!));
+      int.parse(m[1]!),
+      int.parse(m[2]!),
+      int.parse(m[3]!),
+    );
     final check = d.toDateTime();
     if (check.year != d.year || check.month != d.month || check.day != d.day) {
       throw FormatException('Invalid date', s);
@@ -36,7 +39,8 @@ class CalendarDate implements Comparable<CalendarDate> {
 
   DateTime toDateTime() => DateTime(year, month, day);
 
-  String toIso() => '${year.toString().padLeft(4, '0')}-'
+  String toIso() =>
+      '${year.toString().padLeft(4, '0')}-'
       '${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
 
   @override

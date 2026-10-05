@@ -33,16 +33,22 @@ void main() {
 
   // Opaque square icon (iOS, legacy Android): emblem on the banner's
   // wall colour, with breathing room.
-  _write('assets/branding/icon_square.png',
-      _place(emblem, canvas: 1024, fraction: 0.84, fill: background));
+  _write(
+    'assets/branding/icon_square.png',
+    _place(emblem, canvas: 1024, fraction: 0.84, fill: background),
+  );
 
   // Android adaptive icon foreground: emblem inside the 66/108 safe zone.
-  _write('assets/branding/icon_adaptive_foreground.png',
-      _place(emblem, canvas: 1024, fraction: 66 / 108));
+  _write(
+    'assets/branding/icon_adaptive_foreground.png',
+    _place(emblem, canvas: 1024, fraction: 66 / 108),
+  );
 
   // Android 12+ splash icon: must fit within a circle 2/3 of the canvas.
-  _write('assets/branding/splash_emblem.png',
-      _place(emblem, canvas: 1024, fraction: 0.6));
+  _write(
+    'assets/branding/splash_emblem.png',
+    _place(emblem, canvas: 1024, fraction: 0.6),
+  );
 }
 
 /// Flood-fills the background from the region's edges, stopping at the
@@ -128,22 +134,40 @@ img.Image _extractEmblem(img.Image s) {
         if (nx < 0 || ny < 0 || nx >= w || ny >= h || outside[ny][nx]) edge++;
       }
       final p = s.getPixel(regionLeft + x, regionTop + y);
-      out.setPixelRgba(ox + x - minX, oy + y - minY, p.r, p.g, p.b,
-          edge > 0 ? 170 : 255);
+      out.setPixelRgba(
+        ox + x - minX,
+        oy + y - minY,
+        p.r,
+        p.g,
+        p.b,
+        edge > 0 ? 170 : 255,
+      );
     }
   }
   return out;
 }
 
-img.Image _place(img.Image emblem,
-    {required int canvas, required double fraction, img.Color? fill}) {
+img.Image _place(
+  img.Image emblem, {
+  required int canvas,
+  required double fraction,
+  img.Color? fill,
+}) {
   final out = img.Image(width: canvas, height: canvas, numChannels: 4);
   if (fill != null) img.fill(out, color: fill);
   final size = (canvas * fraction).round();
-  final scaled = img.copyResize(emblem,
-      width: size, height: size, interpolation: img.Interpolation.cubic);
-  img.compositeImage(out, scaled,
-      dstX: (canvas - size) ~/ 2, dstY: (canvas - size) ~/ 2);
+  final scaled = img.copyResize(
+    emblem,
+    width: size,
+    height: size,
+    interpolation: img.Interpolation.cubic,
+  );
+  img.compositeImage(
+    out,
+    scaled,
+    dstX: (canvas - size) ~/ 2,
+    dstY: (canvas - size) ~/ 2,
+  );
   return out;
 }
 

@@ -18,11 +18,19 @@ void main() {
   testWidgets('scroll, search and filter performance', (tester) async {
     final openWatch = Stopwatch()..start();
     late AppStore store;
-    await tester.pumpWidget(Project1000App(storeLoader: () async {
-      store = await AppStore.open();
-      return store;
-    }));
-    for (var i = 0; i < 100 && find.byTooltip('Settings').evaluate().isEmpty; i++) {
+    await tester.pumpWidget(
+      Project1000App(
+        storeLoader: () async {
+          store = await AppStore.open();
+          return store;
+        },
+      ),
+    );
+    for (
+      var i = 0;
+      i < 100 && find.byTooltip('Settings').evaluate().isEmpty;
+      i++
+    ) {
       await tester.pump(const Duration(milliseconds: 50));
     }
     final openMs = openWatch.elapsedMilliseconds;
@@ -42,16 +50,23 @@ void main() {
     }
     SchedulerBinding.instance.removeTimingsCallback(collect);
 
-    final build = timings.map((t) => t.buildDuration.inMicroseconds).toList()..sort();
-    final raster = timings.map((t) => t.rasterDuration.inMicroseconds).toList()..sort();
-    int pct(List<int> l, double p) => l.isEmpty ? 0 : l[(l.length * p).floor().clamp(0, l.length - 1)];
+    final build = timings.map((t) => t.buildDuration.inMicroseconds).toList()
+      ..sort();
+    final raster = timings.map((t) => t.rasterDuration.inMicroseconds).toList()
+      ..sort();
+    int pct(List<int> l, double p) =>
+        l.isEmpty ? 0 : l[(l.length * p).floor().clamp(0, l.length - 1)];
 
     final searchWatch = Stopwatch()..start();
     final matches = await store.search('travel');
     final searchMs = searchWatch.elapsedMilliseconds;
     final filterWatch = Stopwatch()..start();
     for (var i = 0; i < 100; i++) {
-      visibleItems(store.items, searchMatches: matches, filter: ListFilter.completed);
+      visibleItems(
+        store.items,
+        searchMatches: matches,
+        filter: ListFilter.completed,
+      );
     }
     final filterUs = filterWatch.elapsedMicroseconds / 100;
 
@@ -66,7 +81,8 @@ void main() {
       'raster_p90_us': pct(raster, .9),
       'raster_p99_us': pct(raster, .99),
       'frames_over_16ms': timings
-          .where((t) => t.totalSpan > const Duration(milliseconds: 16)).length,
+          .where((t) => t.totalSpan > const Duration(milliseconds: 16))
+          .length,
       'search_ms': searchMs,
       'search_hits': matches.length,
       'filter_us': filterUs,

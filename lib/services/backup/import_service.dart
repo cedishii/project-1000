@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:developer' as dev;
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -7,6 +6,7 @@ import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
+import 'package:project_1000/core/log.dart';
 
 import '../../data/archive_location.dart';
 import '../../data/database.dart';
@@ -45,17 +45,21 @@ class ImportPreview {
 ///
 /// Throws [ImportException] with a user-facing reason on failure, after
 /// removing the partial `archive_incoming` folder.
-Future<ImportPreview> prepareImport(String zipPath, ArchiveLocation location,
-    {void Function(double progress)? onProgress}) async {
+Future<ImportPreview> prepareImport(
+  String zipPath,
+  ArchiveLocation location, {
+  void Function(double progress)? onProgress,
+}) async {
   final incoming = location.incoming;
   if (await incoming.exists()) await incoming.delete(recursive: true);
   try {
     final path = incoming.path;
     return await runWithProgress(
-        (report) => _unpackAndValidate(zipPath, path, report),
-        onProgress: onProgress);
+      (report) => _unpackAndValidate(zipPath, path, report),
+      onProgress: onProgress,
+    );
   } catch (e, s) {
-    dev.log('Import validation failed', error: e, stackTrace: s, name: 'backup');
+    logError('Import validation failed', e, s);
     if (await incoming.exists()) {
       try {
         await incoming.delete(recursive: true);
@@ -77,11 +81,16 @@ Future<ImportPreview> prepareImport(String zipPath, ArchiveLocation location,
 ///
 /// Photos whose files were missing/damaged are left out (the user agreed
 /// to this when the preview reported them).
-Future<void> buildIncomingArchive(ImportPreview preview, ArchiveLocation location,
-    {DatabaseFactory? factory}) async {
+Future<void> buildIncomingArchive(
+  ImportPreview preview,
+  ArchiveLocation location, {
+  DatabaseFactory? factory,
+}) async {
   final dir = location.incoming;
-  final db = await openArchiveDatabase(ArchiveLocation.dbPathIn(dir),
-      factory: factory);
+  final db = await openArchiveDatabase(
+    ArchiveLocation.dbPathIn(dir),
+    factory: factory,
+  );
   try {
     await db.transaction((txn) async {
       final batch = txn.batch();
@@ -116,9 +125,11 @@ Future<void> buildIncomingArchive(ImportPreview preview, ArchiveLocation locatio
           });
           final tags = (m['hashtags'] as List).cast<String>();
           for (var t = 0; t < tags.length; t++) {
-            batch.insert('memory_tags',
-                {'memory_id': m['id'], 'position': t, 'tag': tags[t]},
-                conflictAlgorithm: ConflictAlgorithm.ignore);
+            batch.insert('memory_tags', {
+              'memory_id': m['id'],
+              'position': t,
+              'tag': tags[t],
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
           }
           for (final ph in (m['photos'] as List).cast<Map>()) {
             if (ph['_skip'] == true) continue;
@@ -162,7 +173,10 @@ bool _outOfSpace(FileSystemException e) {
 // Runs on a background isolate.
 
 ImportPreview _unpackAndValidate(
-    String zipPath, String incomingPath, void Function(double) report) {
+  String zipPath,
+  String incomingPath,
+  void Function(double) report,
+) {
   final input = InputFileStream(zipPath);
   try {
     final Archive archive;
@@ -171,7 +185,10 @@ ImportPreview _unpackAndValidate(
     } catch (e) {
       throw ImportException(ImportProblem.notABackup, 'not a zip: $e');
     }
-    final entries = {for (final f in archive) if (f.isFile) f.name: f};
+    final entries = {
+      for (final f in archive)
+        if (f.isFile) f.name: f,
+    };
 
     // --- manifest
     final manifestEntry = entries[manifestName];
@@ -203,7 +220,8 @@ ImportPreview _unpackAndValidate(
     }
     Map<String, Object?> data;
     try {
-      data = (jsonDecode(utf8.decode(dataBytes)) as Map).cast<String, Object?>();
+      data = (jsonDecode(utf8.decode(dataBytes)) as Map)
+          .cast<String, Object?>();
     } catch (e) {
       throw ImportException(ImportProblem.corrupted, 'data json: $e');
     }
@@ -215,7 +233,7 @@ ImportPreview _unpackAndValidate(
     final referenced = <Map>[
       for (final i in (data['items'] as List).cast<Map>())
         for (final m in (i['memories'] as List).cast<Map>())
-          ...(m['photos'] as List).cast<Map>()
+          ...(m['photos'] as List).cast<Map>(),
     ];
     final good = <String>{};
     var done = 0;
@@ -272,7 +290,11 @@ Map<String, Object?> _decodeJson(ArchiveFile f, String what) {
 /// matches its recorded checksum. Returns false (and writes nothing) if it
 /// is missing or damaged. Out-of-space errors are rethrown.
 bool _extractVerified(
-    ArchiveFile? entry, Object? info, String incomingPath, String rel) {
+  ArchiveFile? entry,
+  Object? info,
+  String incomingPath,
+  String rel,
+) {
   if (entry == null || info is! Map || !isSafeMediaPath(rel)) return false;
   final target = File(p.join(incomingPath, rel));
   target.parent.createSync(recursive: true);
@@ -288,7 +310,8 @@ bool _extractVerified(
     if (target.existsSync()) target.deleteSync();
     return false;
   }
-  final ok = target.lengthSync() == info['size'] &&
+  final ok =
+      target.lengthSync() == info['size'] &&
       sha256.convert(target.readAsBytesSync()).toString() == info['sha256'];
   if (!ok) target.deleteSync();
   return ok;
@@ -304,7 +327,8 @@ Map<String, Object?> _migrateData(Map<String, Object?> data, int fromVersion) {
 /// Checks data.json is internally consistent. Any problem rejects the
 /// whole backup: a half-understood archive is never imported.
 void _validate(Map<String, Object?> data) {
-  Never bad(String why) => throw ImportException(ImportProblem.invalidData, why);
+  Never bad(String why) =>
+      throw ImportException(ImportProblem.invalidData, why);
   bool isTimestamp(Object? v) => v is String && DateTime.tryParse(v) != null;
   bool isDate(Object? v) {
     if (v is! String) return false;
@@ -328,14 +352,19 @@ void _validate(Map<String, Object?> data) {
     if (i is! Map) bad('item');
     final id = i['id'], number = i['number'];
     if (id is! String || id.isEmpty || !ids.add(id)) bad('item id');
-    if (number is! int || number < 1 || number > maxItems || !numbers.add(number)) {
+    if (number is! int ||
+        number < 1 ||
+        number > maxItems ||
+        !numbers.add(number)) {
       bad('item number');
     }
     if (i['position'] is! int) bad('position');
     if (i['title'] is! String) bad('title');
     if (i['description'] != null && i['description'] is! String) bad('desc');
     if (i['isCompleted'] is! bool) bad('isCompleted');
-    if (i['completedOn'] != null && !isDate(i['completedOn'])) bad('completedOn');
+    if (i['completedOn'] != null && !isDate(i['completedOn'])) {
+      bad('completedOn');
+    }
     if (!isTimestamp(i['createdAt']) || !isTimestamp(i['updatedAt'])) {
       bad('item timestamps');
     }

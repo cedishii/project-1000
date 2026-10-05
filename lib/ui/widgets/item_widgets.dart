@@ -6,7 +6,12 @@ import '../theme.dart';
 
 /// The item's number, given strong visual presence.
 class NumberLabel extends StatelessWidget {
-  const NumberLabel(this.number, {super.key, this.size = 22, this.completed = false});
+  const NumberLabel(
+    this.number, {
+    super.key,
+    this.size = 22,
+    this.completed = false,
+  });
 
   final int number;
   final double size;
@@ -17,14 +22,22 @@ class NumberLabel extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final text = formatNumber(number);
     return Text.rich(
-      TextSpan(children: [
-        TextSpan(
+      TextSpan(
+        children: [
+          TextSpan(
             text: '#',
-            style: TextStyle(color: scheme.onSurfaceVariant.withValues(alpha: 0.6))),
-        TextSpan(text: text.substring(1)),
-      ]),
-      style: display(size,
-          weight: 600, color: completed ? scheme.primary : scheme.secondary),
+            style: TextStyle(
+              color: scheme.onSurfaceVariant.withValues(alpha: 0.6),
+            ),
+          ),
+          TextSpan(text: text.substring(1)),
+        ],
+      ),
+      style: display(
+        size,
+        weight: 600,
+        color: completed ? scheme.primary : scheme.secondary,
+      ),
     );
   }
 }
@@ -48,7 +61,9 @@ class CompletionMark extends StatelessWidget {
         shape: BoxShape.circle,
         color: completed ? scheme.primary : Colors.transparent,
         border: Border.all(
-            color: completed ? scheme.primary : scheme.outline, width: 2),
+          color: completed ? scheme.primary : scheme.outline,
+          width: 2,
+        ),
       ),
       child: completed
           ? Icon(Icons.check_rounded, size: size * 0.7, color: scheme.onPrimary)
@@ -94,32 +109,42 @@ class ItemTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    Text(
+                      item.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     if (item.description.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
-                        child: Text(item.description,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                        child: Text(
+                          item.description,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
                       ),
                     if (memoryCount > 0 || item.isCompleted)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: DefaultTextStyle(
-                          style: theme.textTheme.labelSmall!
-                              .copyWith(color: scheme.onSurfaceVariant),
-                          child: Wrap(spacing: 10, children: [
-                            if (item.isCompleted && item.completedOn != null)
-                              Text('Done ${shortDate(item.completedOn!)}'),
-                            if (memoryCount > 0)
-                              Text(plural(memoryCount, 'memory', 'memories')),
-                          ]),
+                          style: theme.textTheme.labelSmall!.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                          child: Wrap(
+                            spacing: 10,
+                            children: [
+                              if (item.isCompleted && item.completedOn != null)
+                                Text('Done ${shortDate(item.completedOn!)}'),
+                              if (memoryCount > 0)
+                                Text(plural(memoryCount, 'memory', 'memories')),
+                            ],
+                          ),
                         ),
                       ),
                   ],
@@ -142,7 +167,11 @@ class ItemTile extends StatelessWidget {
 
 /// Completed / remaining / percentage.
 class ProgressHeader extends StatelessWidget {
-  const ProgressHeader({super.key, required this.completed, required this.listed});
+  const ProgressHeader({
+    super.key,
+    required this.completed,
+    required this.listed,
+  });
 
   final int completed;
   final int listed;
@@ -174,8 +203,10 @@ class ProgressHeader extends StatelessWidget {
                       backgroundColor: scheme.surfaceContainer,
                     ),
                     Center(
-                      child: Text(percent(completed, maxItems),
-                          style: display(15, color: scheme.primary)),
+                      child: Text(
+                        percent(completed, maxItems),
+                        style: display(15, color: scheme.primary),
+                      ),
                     ),
                   ],
                 ),
@@ -187,23 +218,31 @@ class ProgressHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text.rich(
-                    TextSpan(children: [
-                      TextSpan(
+                    TextSpan(
+                      children: [
+                        TextSpan(
                           text: count(completed),
-                          style: display(30, color: scheme.secondary)),
-                      TextSpan(
+                          style: display(30, color: scheme.secondary),
+                        ),
+                        TextSpan(
                           text: ' / ${count(maxItems)}',
-                          style: display(18,
-                              weight: 500, color: scheme.onSurfaceVariant)),
-                    ]),
+                          style: display(
+                            18,
+                            weight: 500,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   Text('completed', style: theme.textTheme.bodyMedium),
                   const SizedBox(height: 6),
                   Text(
                     '${count(maxItems - completed)} remaining · '
                     '${count(listed)} written down',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),

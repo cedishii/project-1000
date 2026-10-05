@@ -41,8 +41,15 @@ class PhotoStorage {
     await _pending.create(recursive: true);
     final id = ArchiveRepository.newId();
     var ext = p.extension(sourcePath).toLowerCase();
-    if (!const ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.gif']
-        .contains(ext)) {
+    if (!const [
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.webp',
+      '.heic',
+      '.heif',
+      '.gif',
+    ].contains(ext)) {
       ext = '.jpg';
     }
     final full = File(p.join(_pending.path, '$id$ext'));
@@ -91,21 +98,26 @@ class PhotoStorage {
       final thumb = 'thumbs/${ph.id}.jpg';
       await File(location.resolve(ph.file)).rename(location.resolve(file));
       await File(location.resolve(ph.thumb)).rename(location.resolve(thumb));
-      out.add(PhotoRef(
-        id: ph.id,
-        memoryId: ph.memoryId,
-        position: ph.position,
-        file: file,
-        thumb: thumb,
-        width: ph.width,
-        height: ph.height,
-        createdAt: ph.createdAt,
-      ));
+      out.add(
+        PhotoRef(
+          id: ph.id,
+          memoryId: ph.memoryId,
+          position: ph.position,
+          file: file,
+          thumb: thumb,
+          width: ph.width,
+          height: ph.height,
+          createdAt: ph.createdAt,
+        ),
+      );
     }
   }
 
   /// Undoes [commit]: moves files back to where [original] says.
-  Future<void> rollback(List<PhotoRef> original, List<PhotoRef> committed) async {
+  Future<void> rollback(
+    List<PhotoRef> original,
+    List<PhotoRef> committed,
+  ) async {
     for (var i = 0; i < original.length && i < committed.length; i++) {
       final from = committed[i], to = original[i];
       if (from.file == to.file) continue;
@@ -150,9 +162,18 @@ Future<(int?, int?, Uint8List)> _thumbnail(Uint8List bytes) async {
   buffer.dispose();
 
   final pixels = rgba.buffer.asUint8List();
-  final jpeg = await Isolate.run(() => Uint8List.fromList(img.encodeJpg(
-      img.Image.fromBytes(
-          width: tw, height: th, bytes: pixels.buffer, numChannels: 4),
-      quality: 82)));
+  final jpeg = await Isolate.run(
+    () => Uint8List.fromList(
+      img.encodeJpg(
+        img.Image.fromBytes(
+          width: tw,
+          height: th,
+          bytes: pixels.buffer,
+          numChannels: 4,
+        ),
+        quality: 82,
+      ),
+    ),
+  );
   return (w, h, jpeg);
 }

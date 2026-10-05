@@ -48,9 +48,11 @@ class _HomeScreenState extends State<HomeScreen> {
         store.recoveredFromInterruptedImport = false;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            showMessage(context,
-                'An import was interrupted last time. Your previous list was '
-                'kept unchanged.');
+            showMessage(
+              context,
+              'An import was interrupted last time. Your previous list was '
+              'kept unchanged.',
+            );
           }
         });
       }
@@ -101,16 +103,22 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _add() async {
     final store = StoreScope.read(context);
     if (store.isFull) {
-      showMessage(context,
-          'Your list already has ${count(maxItems)} things. Delete one to make room.');
+      showMessage(
+        context,
+        'Your list already has ${count(maxItems)} things. Delete one to make room.',
+      );
       return;
     }
-    await Navigator.push(context,
-        MaterialPageRoute(builder: (_) => const ItemEditorScreen()));
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ItemEditorScreen()),
+    );
   }
 
-  void _open(BucketItem item) => Navigator.push(context,
-      MaterialPageRoute(builder: (_) => ItemDetailScreen(itemId: item.id)));
+  void _open(BucketItem item) => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => ItemDetailScreen(itemId: item.id)),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -120,41 +128,54 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Search and filter only hide rows; the saved order is kept.
     final matches = _matches;
-    final visible =
-        visibleItems(items, searchMatches: matches, filter: _filter);
+    final visible = visibleItems(
+      items,
+      searchMatches: matches,
+      filter: _filter,
+    );
     final narrowed = matches != null || _filter != ListFilter.all;
 
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
-        title: Row(children: [
-          const Emblem(size: 34),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(appName, style: display(21)),
-                Text(appTagline,
+        title: Row(
+          children: [
+            const Emblem(size: 34),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(appName, style: display(21)),
+                  Text(
+                    appTagline,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: scheme.onSurfaceVariant, letterSpacing: 0.3)),
-              ],
+                      color: scheme.onSurfaceVariant,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ]),
+          ],
+        ),
         actions: [
           if (items.length > 1)
             IconButton(
               tooltip: 'Reorder list',
               icon: const Icon(Icons.swap_vert_rounded),
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const ReorderScreen())),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ReorderScreen()),
+              ),
             ),
           IconButton(
             tooltip: 'Settings',
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
           ),
         ],
       ),
@@ -173,7 +194,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   sliver: SliverToBoxAdapter(
                     child: ProgressHeader(
-                        completed: store.completedCount, listed: items.length),
+                      completed: store.completedCount,
+                      listed: items.length,
+                    ),
                   ),
                 ),
                 SliverPadding(
@@ -190,12 +213,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           listenable: _searchController,
                           builder: (context, _) =>
                               _searchController.text.isEmpty
-                                  ? const SizedBox.shrink()
-                                  : IconButton(
-                                      tooltip: 'Clear search',
-                                      icon: const Icon(Icons.close_rounded),
-                                      onPressed: _clearSearch,
-                                    ),
+                              ? const SizedBox.shrink()
+                              : IconButton(
+                                  tooltip: 'Clear search',
+                                  icon: const Icon(Icons.close_rounded),
+                                  onPressed: _clearSearch,
+                                ),
                         ),
                       ),
                     ),
@@ -204,18 +227,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
                   sliver: SliverToBoxAdapter(
-                    child: Wrap(spacing: 8, children: [
-                      for (final f in ListFilter.values)
-                        ChoiceChip(
-                          label: Text(switch (f) {
-                            ListFilter.all => 'All',
-                            ListFilter.completed => 'Completed',
-                            ListFilter.notCompleted => 'Not completed',
-                          }),
-                          selected: _filter == f,
-                          onSelected: (_) => setState(() => _filter = f),
-                        ),
-                    ]),
+                    child: Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final f in ListFilter.values)
+                          ChoiceChip(
+                            label: Text(switch (f) {
+                              ListFilter.all => 'All',
+                              ListFilter.completed => 'Completed',
+                              ListFilter.notCompleted => 'Not completed',
+                            }),
+                            selected: _filter == f,
+                            onSelected: (_) => setState(() => _filter = f),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 if (narrowed)
@@ -239,8 +265,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           matches != null
                               ? 'Nothing matches "$_query".'
                               : _filter == ListFilter.completed
-                                  ? 'Nothing completed yet. It\'s coming.'
-                                  : 'Everything here is completed!',
+                              ? 'Nothing completed yet. It\'s coming.'
+                              : 'Everything here is completed!',
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -287,17 +313,27 @@ class _EmptyList extends StatelessWidget {
             children: [
               const Emblem(size: 120),
               const SizedBox(height: 28),
-              Text('Your list is empty.',
-                  style: display(26), textAlign: TextAlign.center),
+              Text(
+                'Your list is empty.',
+                style: display(26),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 10),
-              Text('You have ${count(maxItems)} possibilities.',
-                  style: display(18,
-                      weight: 500, color: theme.colorScheme.secondary),
-                  textAlign: TextAlign.center),
+              Text(
+                'You have ${count(maxItems)} possibilities.',
+                style: display(
+                  18,
+                  weight: 500,
+                  color: theme.colorScheme.secondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 18),
-              Text('What do you want to do before you die?',
-                  style: theme.textTheme.bodyLarge,
-                  textAlign: TextAlign.center),
+              Text(
+                'What do you want to do before you die?',
+                style: theme.textTheme.bodyLarge,
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 28),
               FilledButton.icon(
                 onPressed: onAdd,

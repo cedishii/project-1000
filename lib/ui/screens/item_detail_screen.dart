@@ -32,11 +32,12 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     }
   }
 
-  Future<void> _openEditor(BucketItem item, [Memory? memory]) =>
-      Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => MemoryEditorScreen(item: item, memory: memory)));
+  Future<void> _openEditor(BucketItem item, [Memory? memory]) => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => MemoryEditorScreen(item: item, memory: memory),
+    ),
+  );
 
   Future<void> _deleteMemory(Memory memory, int index) async {
     final ok = await confirm(
@@ -45,12 +46,15 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
       message: memory.photos.isEmpty
           ? 'This memory will be permanently deleted.'
           : 'This memory and its ${plural(memory.photos.length, 'photo')} '
-              'will be permanently deleted.',
+                'will be permanently deleted.',
       confirmLabel: 'Delete',
       destructive: true,
     );
     if (!ok || !mounted) return;
-    await guard(context, () => StoreScope.read(context).deleteMemory(memory.id));
+    await guard(
+      context,
+      () => StoreScope.read(context).deleteMemory(memory.id),
+    );
   }
 
   @override
@@ -72,9 +76,9 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             tooltip: 'Edit',
             icon: const Icon(Icons.edit_outlined),
             onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => ItemEditorScreen(item: item))),
+              context,
+              MaterialPageRoute(builder: (_) => ItemEditorScreen(item: item)),
+            ),
           ),
           PopupMenuButton<String>(
             tooltip: 'More',
@@ -110,37 +114,52 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             slivers: [
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                sliver: SliverList.list(children: [
-                  NumberLabel(item.number,
-                      size: 48, completed: item.isCompleted),
-                  const SizedBox(height: 10),
-                  Text(item.title, style: display(28, weight: 600)),
-                  if (item.description.isNotEmpty) ...[
+                sliver: SliverList.list(
+                  children: [
+                    NumberLabel(
+                      item.number,
+                      size: 48,
+                      completed: item.isCompleted,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(item.title, style: display(28, weight: 600)),
+                    if (item.description.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        item.description,
+                        style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
+                      ),
+                    ],
+                    const SizedBox(height: 22),
+                    _CompletionCard(item: item),
+                    const SizedBox(height: 28),
+                    Row(
+                      children: [
+                        Text('Memories', style: display(20, weight: 500)),
+                        const SizedBox(width: 8),
+                        if (memories.isNotEmpty)
+                          Text(
+                            '${memories.length}',
+                            style: display(
+                              20,
+                              weight: 500,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
+                    ),
                     const SizedBox(height: 12),
-                    Text(item.description,
-                        style:
-                            theme.textTheme.bodyLarge?.copyWith(height: 1.5)),
                   ],
-                  const SizedBox(height: 22),
-                  _CompletionCard(item: item),
-                  const SizedBox(height: 28),
-                  Row(children: [
-                    Text('Memories', style: display(20, weight: 500)),
-                    const SizedBox(width: 8),
-                    if (memories.isNotEmpty)
-                      Text('${memories.length}',
-                          style: display(20,
-                              weight: 500, color: scheme.onSurfaceVariant)),
-                  ]),
-                  const SizedBox(height: 12),
-                ]),
+                ),
               ),
               if (snap.hasError)
                 const SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.all(20),
-                    child: Text('Memories couldn\'t be loaded. Nothing has '
-                        'been deleted; please reopen this page.'),
+                    child: Text(
+                      'Memories couldn\'t be loaded. Nothing has '
+                      'been deleted; please reopen this page.',
+                    ),
                   ),
                 )
               else if (snap.connectionState != ConnectionState.done &&
@@ -158,11 +177,12 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                     child: Text(
                       item.isCompleted
                           ? 'You did it. Write down how it went, and add a '
-                              'photo or two.'
+                                'photo or two.'
                           : 'No memories yet. Plans, first steps and the big '
-                              'day itself all belong here.',
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: scheme.onSurfaceVariant),
+                                'day itself all belong here.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 )
@@ -205,34 +225,44 @@ class _CompletionCard extends StatelessWidget {
         onTap: () => toggleCompletion(context, item),
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(children: [
-            CompletionMark(completed: item.isCompleted, size: 32),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.isCompleted ? 'Completed' : 'Not completed',
-                      style: display(18,
-                          weight: 500,
-                          color: item.isCompleted
-                              ? scheme.primary
-                              : scheme.onSurface)),
-                  if (item.completedOn != null)
+          child: Row(
+            children: [
+              CompletionMark(completed: item.isCompleted, size: 32),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      item.isCompleted
-                          ? longDate(item.completedOn!)
-                          : 'Previously completed ${longDate(item.completedOn!)}',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: scheme.onSurfaceVariant),
+                      item.isCompleted ? 'Completed' : 'Not completed',
+                      style: display(
+                        18,
+                        weight: 500,
+                        color: item.isCompleted
+                            ? scheme.primary
+                            : scheme.onSurface,
+                      ),
                     ),
-                ],
+                    if (item.completedOn != null)
+                      Text(
+                        item.isCompleted
+                            ? longDate(item.completedOn!)
+                            : 'Previously completed ${longDate(item.completedOn!)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            Text(item.isCompleted ? 'Undo' : 'Mark done',
-                style: theme.textTheme.labelLarge
-                    ?.copyWith(color: scheme.primary)),
-          ]),
+              Text(
+                item.isCompleted ? 'Undo' : 'Mark done',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: scheme.primary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

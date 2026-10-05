@@ -5,8 +5,7 @@ import 'package:sqflite/sqflite.dart';
 const int schemaVersion = 1;
 
 /// Opens (creating if needed) the archive database at [path].
-Future<Database> openArchiveDatabase(String path,
-    {DatabaseFactory? factory}) {
+Future<Database> openArchiveDatabase(String path, {DatabaseFactory? factory}) {
   final f = factory ?? databaseFactory;
   return f.openDatabase(
     path,

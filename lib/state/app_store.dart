@@ -1,4 +1,5 @@
-import 'dart:developer' as dev;
+import '../core/log.dart';
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -18,8 +19,8 @@ import '../services/photo_storage.dart';
 /// settings. Screens listen to it and call its methods to change data.
 class AppStore extends ChangeNotifier {
   AppStore._(this.location, this._db, {this.factory})
-      : _repo = ArchiveRepository(_db),
-        photos = PhotoStorage(location);
+    : _repo = ArchiveRepository(_db),
+      photos = PhotoStorage(location);
 
   /// Opens the archive in the app's private documents folder.
   static Future<AppStore> open({
@@ -94,12 +95,20 @@ class AppStore extends ChangeNotifier {
     return item;
   }
 
-  Future<void> updateItemText(String id, String title, String description) async {
+  Future<void> updateItemText(
+    String id,
+    String title,
+    String description,
+  ) async {
     await _repo.updateItemText(id, title, description);
     await _reload();
   }
 
-  Future<void> setCompleted(String id, bool completed, {CalendarDate? on}) async {
+  Future<void> setCompleted(
+    String id,
+    bool completed, {
+    CalendarDate? on,
+  }) async {
     await _repo.setCompleted(id, completed, on: on);
     await _reload();
   }
@@ -139,16 +148,18 @@ class AppStore extends ChangeNotifier {
     final String id;
     final List<String> removedFiles;
     try {
-      (id, removedFiles) = await _repo.saveMemory(MemoryDraft(
-        id: draft.id,
-        itemId: draft.itemId,
-        title: draft.title,
-        body: draft.body,
-        date: draft.date,
-        location: draft.location,
-        hashtags: draft.hashtags,
-        photos: committed,
-      ));
+      (id, removedFiles) = await _repo.saveMemory(
+        MemoryDraft(
+          id: draft.id,
+          itemId: draft.itemId,
+          title: draft.title,
+          body: draft.body,
+          date: draft.date,
+          location: draft.location,
+          hashtags: draft.hashtags,
+          photos: committed,
+        ),
+      );
     } catch (_) {
       await photos.rollback(draft.photos, committed);
       rethrow;
@@ -174,7 +185,7 @@ class AppStore extends ChangeNotifier {
         final f = File(location.resolve(rel));
         if (await f.exists()) await f.delete();
       } catch (e) {
-        dev.log('Could not delete $rel: $e', name: 'archive');
+        logError('Could not delete $rel', e);
       }
     }
   }
@@ -219,15 +230,17 @@ class AppStore extends ChangeNotifier {
   }
 
   /// Writes a backup .zip into [outDir].
-  Future<ExportResult> exportBackup(Directory outDir, String appVersion,
-          {void Function(double progress)? onProgress}) =>
-      export_service.exportBackup(
-        db: _db,
-        archiveDir: location.live,
-        outDir: outDir,
-        appVersion: appVersion,
-        onProgress: onProgress,
-      );
+  Future<ExportResult> exportBackup(
+    Directory outDir,
+    String appVersion, {
+    void Function(double progress)? onProgress,
+  }) => export_service.exportBackup(
+    db: _db,
+    archiveDir: location.live,
+    outDir: outDir,
+    appVersion: appVersion,
+    onProgress: onProgress,
+  );
 
   Future<void> close() => _db.close();
 }

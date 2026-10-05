@@ -14,8 +14,10 @@ class AboutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = theme.textTheme.bodyMedium
-        ?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.5);
+    final muted = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+      height: 1.5,
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('About')),
@@ -39,8 +41,10 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 20),
           _Section(
             title: 'Author',
-            child: Text('Created by $author.\n© ${DateTime.now().year} $author.',
-                style: muted),
+            child: Text(
+              'Created by $author.\n© ${DateTime.now().year} $author.',
+              style: muted,
+            ),
           ),
           _Section(
             title: 'Privacy',
@@ -92,14 +96,14 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: display(18, weight: 500)),
-            const SizedBox(height: 6),
-            child,
-          ],
-        ),
-      );
+    padding: const EdgeInsets.only(top: 18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: display(18, weight: 500)),
+        const SizedBox(height: 6),
+        child,
+      ],
+    ),
+  );
 }

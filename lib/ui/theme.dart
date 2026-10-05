@@ -25,18 +25,23 @@ TextStyle display(double size, {double weight = 600, Color? color}) =>
 
 ThemeData buildTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
-  final scheme = ColorScheme.fromSeed(
-    seedColor: Brand.green,
-    brightness: brightness,
-  ).copyWith(
-    primary: dark ? const Color(0xFF8FD67C) : Brand.deepGreen,
-    secondary: dark ? const Color(0xFFCDB4DB) : Brand.purple,
-    tertiary: Brand.blush,
-    surface: dark ? const Color(0xFF1C2120) : Brand.paper,
-    surfaceContainerLowest: dark ? const Color(0xFF171B1A) : Colors.white,
-    surfaceContainerLow: dark ? const Color(0xFF222826) : const Color(0xFFF5F1E7),
-    surfaceContainer: dark ? const Color(0xFF272E2C) : const Color(0xFFEFEADF),
-  );
+  final scheme =
+      ColorScheme.fromSeed(
+        seedColor: Brand.green,
+        brightness: brightness,
+      ).copyWith(
+        primary: dark ? const Color(0xFF8FD67C) : Brand.deepGreen,
+        secondary: dark ? const Color(0xFFCDB4DB) : Brand.purple,
+        tertiary: Brand.blush,
+        surface: dark ? const Color(0xFF1C2120) : Brand.paper,
+        surfaceContainerLowest: dark ? const Color(0xFF171B1A) : Colors.white,
+        surfaceContainerLow: dark
+            ? const Color(0xFF222826)
+            : const Color(0xFFF5F1E7),
+        surfaceContainer: dark
+            ? const Color(0xFF272E2C)
+            : const Color(0xFFEFEADF),
+      );
 
   final base = ThemeData(
     useMaterial3: true,

@@ -9,7 +9,12 @@ import '../screens/photo_viewer_screen.dart';
 /// A square thumbnail, decoded at display size and cached by Flutter's
 /// image cache. Shows a placeholder if the file is missing.
 class PhotoThumb extends StatelessWidget {
-  const PhotoThumb({super.key, required this.photo, this.size = 96, this.onTap});
+  const PhotoThumb({
+    super.key,
+    required this.photo,
+    this.size = 96,
+    this.onTap,
+  });
 
   final PhotoRef photo;
   final double size;
@@ -57,8 +62,10 @@ class _MissingOverlay extends StatelessWidget {
     final exists = File(store.location.resolve(photo.thumb)).existsSync();
     if (exists) return const SizedBox.expand();
     return Center(
-      child: Icon(Icons.broken_image_outlined,
-          color: Theme.of(context).colorScheme.onSurfaceVariant),
+      child: Icon(
+        Icons.broken_image_outlined,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }

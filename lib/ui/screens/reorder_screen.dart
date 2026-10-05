@@ -39,12 +39,14 @@ class ReorderScreen extends StatelessWidget {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () =>
-                  Navigator.pop(context, int.tryParse(controller.text)),
-              child: const Text('Move')),
+            onPressed: () =>
+                Navigator.pop(context, int.tryParse(controller.text)),
+            child: const Text('Move'),
+          ),
         ],
       ),
     );
@@ -63,8 +65,9 @@ class ReorderScreen extends StatelessWidget {
         title: const Text('Reorder'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Done')),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Done'),
+          ),
         ],
       ),
       body: Column(
@@ -75,8 +78,9 @@ class ReorderScreen extends StatelessWidget {
               'Drag the handle, use the arrows, or tap a row to move it to a '
               'specific place. Numbers stay with their items. Changes are '
               'saved right away.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           Expanded(
@@ -102,36 +106,48 @@ class ReorderScreen extends StatelessWidget {
                         child: Icon(Icons.drag_indicator_rounded),
                       ),
                     ),
-                    title: Row(children: [
-                      SizedBox(
+                    title: Row(
+                      children: [
+                        SizedBox(
                           width: 58,
-                          child: NumberLabel(item.number,
-                              size: 17, completed: item.isCompleted)),
-                      Expanded(
-                        child: Text(item.title,
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
-                      ),
-                    ]),
+                          child: NumberLabel(
+                            item.number,
+                            size: 17,
+                            completed: item.isCompleted,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            item.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                     subtitle: Padding(
                       padding: const EdgeInsets.only(left: 58),
                       child: Text('Place ${count(index + 1)}'),
                     ),
-                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                      IconButton(
-                        tooltip: 'Move up',
-                        onPressed: index == 0
-                            ? null
-                            : () => _move(context, index, index - 1),
-                        icon: const Icon(Icons.keyboard_arrow_up_rounded),
-                      ),
-                      IconButton(
-                        tooltip: 'Move down',
-                        onPressed: index == items.length - 1
-                            ? null
-                            : () => _move(context, index, index + 1),
-                        icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                      ),
-                    ]),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Move up',
+                          onPressed: index == 0
+                              ? null
+                              : () => _move(context, index, index - 1),
+                          icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                        ),
+                        IconButton(
+                          tooltip: 'Move down',
+                          onPressed: index == items.length - 1
+                              ? null
+                              : () => _move(context, index, index + 1),
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },

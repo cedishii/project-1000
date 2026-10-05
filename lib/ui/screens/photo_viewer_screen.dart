@@ -8,8 +8,11 @@ import '../store_scope.dart';
 /// Full-screen photos with swipe and pinch-to-zoom. Only the visible page
 /// (and its neighbours) are decoded.
 class PhotoViewerScreen extends StatefulWidget {
-  const PhotoViewerScreen(
-      {super.key, required this.photos, required this.initialIndex});
+  const PhotoViewerScreen({
+    super.key,
+    required this.photos,
+    required this.initialIndex,
+  });
 
   final List<PhotoRef> photos;
   final int initialIndex;
@@ -42,8 +45,8 @@ class _PhotoViewerScreenState extends State<PhotoViewerScreen> {
   Widget build(BuildContext context) {
     final store = StoreScope.read(context);
     final size = MediaQuery.sizeOf(context);
-    final maxPx =
-        (size.longestSide * MediaQuery.devicePixelRatioOf(context)).round();
+    final maxPx = (size.longestSide * MediaQuery.devicePixelRatioOf(context))
+        .round();
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -51,8 +54,10 @@ class _PhotoViewerScreenState extends State<PhotoViewerScreen> {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         title: widget.photos.length > 1
-            ? Text('${_index + 1} / ${widget.photos.length}',
-                style: const TextStyle(color: Colors.white))
+            ? Text(
+                '${_index + 1} / ${widget.photos.length}',
+                style: const TextStyle(color: Colors.white),
+              )
             : null,
       ),
       body: PageView.builder(
@@ -89,11 +94,16 @@ class _PhotoViewerScreenState extends State<PhotoViewerScreen> {
                 errorBuilder: (_, _, _) => const Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.broken_image_outlined,
-                        color: Colors.white54, size: 48),
+                    Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.white54,
+                      size: 48,
+                    ),
                     SizedBox(height: 8),
-                    Text('This photo file is missing.',
-                        style: TextStyle(color: Colors.white70)),
+                    Text(
+                      'This photo file is missing.',
+                      style: TextStyle(color: Colors.white70),
+                    ),
                   ],
                 ),
               ),

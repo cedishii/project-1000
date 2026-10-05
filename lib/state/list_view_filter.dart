@@ -20,6 +20,6 @@ List<BucketItem> visibleItems(
             ListFilter.completed => i.isCompleted,
             ListFilter.notCompleted => !i.isCompleted,
           })
-        i
+        i,
   ];
 }

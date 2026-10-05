@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
@@ -20,21 +21,28 @@ import 'memories_test.dart' show fakePendingPhoto;
 Future<String> fingerprint(AppStore store) async {
   final out = StringBuffer();
   for (final i in store.items) {
-    out.writeln([
-      i.id, i.number, i.position, i.title, i.description, i.isCompleted,
-      i.completedOn, i.createdAt.toIso8601String(), i.updatedAt.toIso8601String()
-    ].join('|'));
+    out.writeln(
+      [
+        i.id,
+        i.number,
+        i.position,
+        i.title,
+        i.description,
+        i.isCompleted,
+        i.completedOn,
+        i.createdAt.toIso8601String(),
+        i.updatedAt.toIso8601String(),
+      ].join('|'),
+    );
     for (final m in await store.loadMemories(i.id)) {
-      out.writeln('  ${[
-        m.id, m.position, m.title, m.body, m.date, m.location,
-        m.hashtags.join(','), m.createdAt.toIso8601String()
-      ].join('|')}');
+      out.writeln(
+        '  ${[m.id, m.position, m.title, m.body, m.date, m.location, m.hashtags.join(','), m.createdAt.toIso8601String()].join('|')}',
+      );
       for (final ph in m.photos) {
         final bytes = File(store.location.resolve(ph.file)).readAsBytesSync();
-        out.writeln('    ${[
-          ph.id, ph.position, ph.file, ph.thumb, ph.width, ph.height,
-          sha256.convert(bytes)
-        ].join('|')}');
+        out.writeln(
+          '    ${[ph.id, ph.position, ph.file, ph.thumb, ph.width, ph.height, sha256.convert(bytes)].join('|')}',
+        );
       }
     }
   }
@@ -64,26 +72,36 @@ void main() {
       await store.addItem('Thing $n', n.isEven ? 'Description of $n' : '');
     }
     final ids = store.items.map((i) => i.id).toList();
-    await store.saveOrder([ids[5], ids[0], ids[7], ids[2], ids[1], ids[3],
-        ids[6], ids[4]]);
+    await store.saveOrder([
+      ids[5],
+      ids[0],
+      ids[7],
+      ids[2],
+      ids[1],
+      ids[3],
+      ids[6],
+      ids[4],
+    ]);
     await store.setCompleted(ids[0], true, on: CalendarDate(2031, 3, 4));
     await store.setCompleted(ids[3], true, on: CalendarDate(2032, 9, 18));
     await store.setCompleted(ids[6], true);
     await store.setCompleted(ids[6], false); // keeps its old date
     for (final (idx, n) in [(0, 3), (3, 2), (5, 1)]) {
       for (var k = 0; k < n; k++) {
-        await store.saveMemory(MemoryDraft(
-          itemId: ids[idx],
-          title: 'Memory $k of $idx',
-          body: 'Text $k — ünïcödé ✓ 日本',
-          date: CalendarDate(2030 + k, 1 + k, 10 + k),
-          location: k.isEven ? 'Reykjavík, Iceland' : '',
-          hashtags: parseHashtags('#travel #dream$k'),
-          photos: [
-            for (var f = 0; f < k + 1; f++)
-              await fakePendingPhoto(store, 'photo $idx-$k-$f'),
-          ],
-        ));
+        await store.saveMemory(
+          MemoryDraft(
+            itemId: ids[idx],
+            title: 'Memory $k of $idx',
+            body: 'Text $k — ünïcödé ✓ 日本',
+            date: CalendarDate(2030 + k, 1 + k, 10 + k),
+            location: k.isEven ? 'Reykjavík, Iceland' : '',
+            hashtags: parseHashtags('#travel #dream$k'),
+            photos: [
+              for (var f = 0; f < k + 1; f++)
+                await fakePendingPhoto(store, 'photo $idx-$k-$f'),
+            ],
+          ),
+        );
       }
     }
     await store.setThemeMode(ThemeMode.dark);
@@ -92,30 +110,32 @@ void main() {
   Future<File> export() async =>
       (await store.exportBackup(exports, '1.0.0+1')).file;
 
-  test('Phase 7: export → reset → import restores everything identically',
-      () async {
-    await buildRichArchive();
-    final before = await fingerprint(store);
-    final zip = await export();
-    expect(p.basename(zip.path), startsWith('1000-things-backup-'));
+  test(
+    'Phase 7: export → reset → import restores everything identically',
+    () async {
+      await buildRichArchive();
+      final before = await fingerprint(store);
+      final zip = await export();
+      expect(p.basename(zip.path), startsWith('1000-things-backup-'));
 
-    // Reset: wipe this device's data completely.
-    await device.dispose();
-    device = await TestArchive.create();
-    store = await device.open();
-    expect(store.items, isEmpty);
+      // Reset: wipe this device's data completely.
+      await device.dispose();
+      device = await TestArchive.create();
+      store = await device.open();
+      expect(store.items, isEmpty);
 
-    final preview = await prepareImport(zip.path, store.location);
-    expect(preview.itemCount, 8);
-    expect(preview.memoryCount, 6);
-    expect(preview.photoCount, 10);
-    expect(preview.missingPhotoCount, 0);
-    await store.importBackup(preview);
+      final preview = await prepareImport(zip.path, store.location);
+      expect(preview.itemCount, 8);
+      expect(preview.memoryCount, 6);
+      expect(preview.photoCount, 10);
+      expect(preview.missingPhotoCount, 0);
+      await store.importBackup(preview);
 
-    expect(await fingerprint(store), before);
-    store = await device.restart();
-    expect(await fingerprint(store), before);
-  });
+      expect(await fingerprint(store), before);
+      store = await device.restart();
+      expect(await fingerprint(store), before);
+    },
+  );
 
   test('import replaces existing data only after success', () async {
     await buildRichArchive();
@@ -128,8 +148,9 @@ void main() {
     final preview = await prepareImport(zip.path, store.location);
     await store.importBackup(preview);
     expect(await fingerprint(store), backup);
-    expect(device.root.listSync().map((e) => p.basename(e.path)).toSet(),
-        {'archive'}, reason: 'no temporary folders left behind');
+    expect(device.root.listSync().map((e) => p.basename(e.path)).toSet(), {
+      'archive',
+    }, reason: 'no temporary folders left behind');
   });
 
   test('cancelling after preview changes nothing', () async {
@@ -157,8 +178,9 @@ void main() {
     Future<void> expectRejected(File zip, ImportProblem problem) async {
       await expectLater(
         prepareImport(zip.path, store.location),
-        throwsA(isA<ImportException>()
-            .having((e) => e.problem, 'problem', problem)),
+        throwsA(
+          isA<ImportException>().having((e) => e.problem, 'problem', problem),
+        ),
       );
       expect(store.location.incoming.existsSync(), isFalse);
       store = await device.restart();
@@ -167,10 +189,12 @@ void main() {
 
     /// Rewrites the good backup with [edit] applied to its entries.
     Future<File> tampered(
-        void Function(Map<String, List<int>> files) edit) async {
+      void Function(Map<String, List<int>> files) edit,
+    ) async {
       final archive = ZipDecoder().decodeBytes(good.readAsBytesSync());
       final files = {
-        for (final f in archive) if (f.isFile) f.name: f.readBytes()!.toList()
+        for (final f in archive)
+          if (f.isFile) f.name: f.readBytes()!.toList(),
       };
       edit(files);
       final out = Archive();
@@ -192,8 +216,9 @@ void main() {
           edit(data);
           files[dataName] = bytes(data);
           final manifest = json(files[manifestName]!);
-          (manifest['data'] as Map)['sha256'] =
-              sha256.convert(files[dataName]!).toString();
+          (manifest['data'] as Map)['sha256'] = sha256
+              .convert(files[dataName]!)
+              .toString();
           files[manifestName] = bytes(manifest);
         });
 
@@ -212,67 +237,91 @@ void main() {
 
     test('a zip that is not a Project: 1000 backup', () async {
       await expectRejected(
-          await tampered((f) => f.remove(manifestName)), ImportProblem.notABackup);
+        await tampered((f) => f.remove(manifestName)),
+        ImportProblem.notABackup,
+      );
     });
 
     test('invalid JSON in data.json', () async {
       await expectRejected(
-          await tampered((f) => f[dataName] = utf8.encode('{"items": [')),
-          ImportProblem.corrupted);
+        await tampered((f) => f[dataName] = utf8.encode('{"items": [')),
+        ImportProblem.corrupted,
+      );
     });
 
     test('data.json altered (checksum mismatch)', () async {
-      await expectRejected(await tampered((f) {
-        final d = json(f[dataName]!);
-        ((d['items'] as List).first as Map)['title'] = 'Changed';
-        f[dataName] = bytes(d);
-      }), ImportProblem.corrupted);
+      await expectRejected(
+        await tampered((f) {
+          final d = json(f[dataName]!);
+          ((d['items'] as List).first as Map)['title'] = 'Changed';
+          f[dataName] = bytes(d);
+        }),
+        ImportProblem.corrupted,
+      );
     });
 
     test('backup from a newer, unsupported version', () async {
-      await expectRejected(await tampered((f) {
-        final m = json(f[manifestName]!);
-        m['dataFormatVersion'] = 99;
-        f[manifestName] = bytes(m);
-      }), ImportProblem.newerVersion);
+      await expectRejected(
+        await tampered((f) {
+          final m = json(f[manifestName]!);
+          m['dataFormatVersion'] = 99;
+          f[manifestName] = bytes(m);
+        }),
+        ImportProblem.newerVersion,
+      );
     });
 
     test('duplicate item numbers', () async {
-      await expectRejected(await withData((d) {
-        final items = (d['items'] as List).cast<Map>();
-        items[1]['number'] = items[0]['number'];
-      }), ImportProblem.invalidData);
+      await expectRejected(
+        await withData((d) {
+          final items = (d['items'] as List).cast<Map>();
+          items[1]['number'] = items[0]['number'];
+        }),
+        ImportProblem.invalidData,
+      );
     });
 
     test('duplicate IDs', () async {
-      await expectRejected(await withData((d) {
-        final items = (d['items'] as List).cast<Map>();
-        items[1]['id'] = items[0]['id'];
-      }), ImportProblem.invalidData);
+      await expectRejected(
+        await withData((d) {
+          final items = (d['items'] as List).cast<Map>();
+          items[1]['id'] = items[0]['id'];
+        }),
+        ImportProblem.invalidData,
+      );
     });
 
     test('more than 1000 items', () async {
-      await expectRejected(await withData((d) {
-        final items = (d['items'] as List).cast<Map>();
-        d['items'] = [
-          for (var n = 1; n <= 1001; n++)
-            {...items[0], 'id': 'id$n', 'number': n, 'memories': []}
-        ];
-      }), ImportProblem.invalidData);
+      await expectRejected(
+        await withData((d) {
+          final items = (d['items'] as List).cast<Map>();
+          d['items'] = [
+            for (var n = 1; n <= 1001; n++)
+              {...items[0], 'id': 'id$n', 'number': n, 'memories': []},
+          ];
+        }),
+        ImportProblem.invalidData,
+      );
     });
 
     test('photo path trying to escape the archive folder', () async {
-      await expectRejected(await withData((d) {
-        final m = ((d['items'] as List).first as Map)['memories'] as List;
-        ((m.first as Map)['photos'] as List).cast<Map>().first['file'] =
-            '../../evil.jpg';
-      }), ImportProblem.invalidData);
+      await expectRejected(
+        await withData((d) {
+          final m = ((d['items'] as List).first as Map)['memories'] as List;
+          ((m.first as Map)['photos'] as List).cast<Map>().first['file'] =
+              '../../evil.jpg';
+        }),
+        ImportProblem.invalidData,
+      );
     });
 
     test('invalid date', () async {
-      await expectRejected(await withData((d) {
-        ((d['items'] as List).first as Map)['completedOn'] = '2031-02-30';
-      }), ImportProblem.invalidData);
+      await expectRejected(
+        await withData((d) {
+          ((d['items'] as List).first as Map)['completedOn'] = '2031-02-30';
+        }),
+        ImportProblem.invalidData,
+      );
     });
   });
 
@@ -313,36 +362,47 @@ void main() {
     }
   });
 
-  test('Phase 8: an import interrupted mid-swap is rolled back on next launch',
-      () async {
-    await buildRichArchive();
-    final before = await fingerprint(store);
-    final zip = await export();
-    final preview = await prepareImport(zip.path, store.location);
-    await buildIncomingArchive(preview, store.location,
-        factory: databaseFactoryFfi);
-    await store.close();
+  test(
+    'Phase 8: an import interrupted mid-swap is rolled back on next launch',
+    () async {
+      await buildRichArchive();
+      final before = await fingerprint(store);
+      final zip = await export();
+      final preview = await prepareImport(zip.path, store.location);
+      await buildIncomingArchive(
+        preview,
+        store.location,
+        factory: databaseFactoryFfi,
+      );
+      await store.close();
 
-    // Simulate the app dying right after the first rename of the swap.
-    final loc = store.location;
-    await loc.swapMarker.writeAsString('{}');
-    await loc.live.rename(loc.previous.path);
+      // Simulate the app dying right after the first rename of the swap.
+      final loc = store.location;
+      await loc.swapMarker.writeAsString('{}');
+      await loc.live.rename(loc.previous.path);
 
-    store = await device.open();
-    expect(store.recoveredFromInterruptedImport, isTrue);
-    expect(await fingerprint(store), before);
-    expect(loc.previous.existsSync(), isFalse);
-    expect(loc.incoming.existsSync(), isFalse);
-    expect(loc.swapMarker.existsSync(), isFalse);
-  });
+      store = await device.open();
+      expect(store.recoveredFromInterruptedImport, isTrue);
+      expect(await fingerprint(store), before);
+      expect(loc.previous.existsSync(), isFalse);
+      expect(loc.incoming.existsSync(), isFalse);
+      expect(loc.swapMarker.existsSync(), isFalse);
+    },
+  );
 
   test('Phase 8: a failing swap reopens the old archive unchanged', () async {
     await buildRichArchive();
     final before = await fingerprint(store);
     await expectLater(
-        store.replaceArchive(() async => throw const FileSystemException(
-            'No space left on device', '', OSError('ENOSPC', 28))),
-        throwsA(isA<FileSystemException>()));
+      store.replaceArchive(
+        () async => throw const FileSystemException(
+          'No space left on device',
+          '',
+          OSError('ENOSPC', 28),
+        ),
+      ),
+      throwsA(isA<FileSystemException>()),
+    );
     expect(await fingerprint(store), before);
   });
 
@@ -354,6 +414,38 @@ void main() {
     expect(result.missingFiles, [m.photos.first.file]);
     expect(result.items, 8);
   });
+
+  test(
+    'export and import report progress, even when the progress '
+    'callback references things that cannot leave the main isolate',
+    () async {
+      await buildRichArchive();
+      // A ReceivePort can't be sent to another isolate; the UI's callback
+      // similarly references widgets. This used to make export fail.
+      final unsendable = ReceivePort();
+      final seen = <double>[];
+      void onProgress(double v) {
+        unsendable.hashCode;
+        seen.add(v);
+      }
+
+      final result = await store.exportBackup(
+        exports,
+        '1.0.0+1',
+        onProgress: onProgress,
+      );
+      final preview = await prepareImport(
+        result.file.path,
+        store.location,
+        onProgress: onProgress,
+      );
+      await cancelImport(store.location);
+      unsendable.close();
+      expect(preview.itemCount, 8);
+      expect(seen, isNotEmpty);
+      expect(seen.every((v) => v >= 0 && v <= 1), isTrue);
+    },
+  );
 
   test('an empty list exports and imports cleanly', () async {
     final zip = await export();

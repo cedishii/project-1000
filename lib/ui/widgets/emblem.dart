@@ -9,12 +9,12 @@ class Emblem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Image.asset(
-        'assets/branding/emblem.png',
-        width: size,
-        height: size,
-        filterQuality: FilterQuality.medium,
-        semanticLabel: 'Project: 1000 logo',
-      );
+    'assets/branding/emblem.png',
+    width: size,
+    height: size,
+    filterQuality: FilterQuality.medium,
+    semanticLabel: 'Project: 1000 logo',
+  );
 }
 
 /// The full official logo banner.
@@ -23,11 +23,11 @@ class LogoBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Image.asset(
-          'assets/branding/logo_original.png',
-          fit: BoxFit.cover,
-          semanticLabel: 'Project: 1000 logo',
-        ),
-      );
+    borderRadius: BorderRadius.circular(18),
+    child: Image.asset(
+      'assets/branding/logo_original.png',
+      fit: BoxFit.cover,
+      semanticLabel: 'Project: 1000 logo',
+    ),
+  );
 }

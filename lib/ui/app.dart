@@ -1,6 +1,5 @@
-import 'dart:developer' as dev;
-
 import 'package:flutter/material.dart';
+import 'package:project_1000/core/log.dart';
 
 import '../state/app_store.dart';
 import 'screens/home_screen.dart';
@@ -36,7 +35,7 @@ class _Project1000AppState extends State<Project1000App> {
       final store = await widget.storeLoader();
       setState(() => _store = store);
     } catch (e, s) {
-      dev.log('Could not open archive', error: e, stackTrace: s, name: 'app');
+      logError('Could not open archive', e, s);
       setState(() => _error = e);
     }
   }
@@ -45,24 +44,23 @@ class _Project1000AppState extends State<Project1000App> {
   Widget build(BuildContext context) {
     final store = _store;
     Widget app(ThemeMode mode, Widget home) => MaterialApp(
-          title: appName,
-          debugShowCheckedModeBanner: false,
-          theme: buildTheme(Brightness.light),
-          darkTheme: buildTheme(Brightness.dark),
-          themeMode: mode,
-          // Every route (not just home) can reach the store.
-          builder: store == null
-              ? null
-              : (context, child) => StoreScope(store: store, child: child!),
-          home: home,
-        );
+      title: appName,
+      debugShowCheckedModeBanner: false,
+      theme: buildTheme(Brightness.light),
+      darkTheme: buildTheme(Brightness.dark),
+      themeMode: mode,
+      // Every route (not just home) can reach the store.
+      builder: store == null
+          ? null
+          : (context, child) => StoreScope(store: store, child: child!),
+      home: home,
+    );
 
     if (store == null) {
       return app(
-          ThemeMode.system,
-          _error != null
-              ? _StartupError(onRetry: _load)
-              : const _Loading());
+        ThemeMode.system,
+        _error != null ? _StartupError(onRetry: _load) : const _Loading(),
+      );
     }
     return ListenableBuilder(
       listenable: store,
@@ -75,9 +73,8 @@ class _Loading extends StatelessWidget {
   const _Loading();
 
   @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Emblem(size: 96)),
-      );
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: Emblem(size: 96)));
 }
 
 class _StartupError extends StatelessWidget {
@@ -96,8 +93,11 @@ class _StartupError extends StatelessWidget {
             children: [
               const Emblem(size: 88),
               const SizedBox(height: 24),
-              Text('Your list couldn\'t be opened',
-                  style: display(22), textAlign: TextAlign.center),
+              Text(
+                'Your list couldn\'t be opened',
+                style: display(22),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 12),
               const Text(
                 'Nothing has been deleted. This can happen if the phone is '

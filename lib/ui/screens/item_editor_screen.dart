@@ -18,8 +18,9 @@ class ItemEditorScreen extends StatefulWidget {
 
 class _ItemEditorScreenState extends State<ItemEditorScreen> {
   late final _title = TextEditingController(text: widget.item?.title);
-  late final _description =
-      TextEditingController(text: widget.item?.description);
+  late final _description = TextEditingController(
+    text: widget.item?.description,
+  );
   final _form = GlobalKey<FormState>();
   bool _saving = false;
 
@@ -45,7 +46,10 @@ class _ItemEditorScreenState extends State<ItemEditorScreen> {
         await store.addItem(_title.text, _description.text);
       } else {
         await store.updateItemText(
-            widget.item!.id, _title.text, _description.text);
+          widget.item!.id,
+          _title.text,
+          _description.text,
+        );
       }
     });
     if (!mounted) return;
@@ -66,11 +70,13 @@ class _ItemEditorScreenState extends State<ItemEditorScreen> {
       canPop: _saving || !_dirty,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        final discard = await confirm(context,
-            title: 'Discard changes?',
-            message: 'What you typed hasn\'t been saved.',
-            confirmLabel: 'Discard',
-            destructive: true);
+        final discard = await confirm(
+          context,
+          title: 'Discard changes?',
+          message: 'What you typed hasn\'t been saved.',
+          confirmLabel: 'Discard',
+          destructive: true,
+        );
         if (discard && context.mounted) Navigator.pop(context);
       },
       child: Scaffold(
@@ -91,8 +97,10 @@ class _ItemEditorScreenState extends State<ItemEditorScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
             children: [
-              Text(formatNumber(number),
-                  style: display(44, color: scheme.secondary)),
+              Text(
+                formatNumber(number),
+                style: display(44, color: scheme.secondary),
+              ),
               const SizedBox(height: 20),
               TextFormField(
                 controller: _title,
@@ -105,9 +113,8 @@ class _ItemEditorScreenState extends State<ItemEditorScreen> {
                   labelText: 'What do you want to do?',
                   hintText: 'Something to do before you die',
                 ),
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Give it a title'
-                    : null,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Give it a title' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(

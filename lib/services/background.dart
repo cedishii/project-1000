@@ -11,11 +11,19 @@ Future<R> runWithProgress<R>(
   final sub = port.listen((m) {
     if (m is double) onProgress?.call(m);
   });
-  final send = port.sendPort;
   try {
-    return await Isolate.run(() => job(send.send));
+    return await _spawn(job, port.sendPort);
   } finally {
     await sub.cancel();
     port.close();
   }
 }
+
+/// Kept separate on purpose: the closure sent to the new isolate may only
+/// capture [job] and [send]. Defined inside [runWithProgress] it would
+/// also carry [onProgress] (which can reference UI objects that can't be
+/// sent between isolates) and the send would fail.
+Future<R> _spawn<R>(
+  FutureOr<R> Function(void Function(double)) job,
+  SendPort send,
+) => Isolate.run(() => job(send.send));

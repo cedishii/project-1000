@@ -26,8 +26,9 @@ class MemoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final muted =
-        theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: scheme.onSurfaceVariant,
+    );
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -38,23 +39,30 @@ class MemoryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(children: [
-                Text('Memory #$index',
-                    style: display(14, weight: 500, color: scheme.secondary)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(longDate(memory.date),
-                      style: muted, overflow: TextOverflow.ellipsis),
-                ),
-                PopupMenuButton<String>(
-                  tooltip: 'Memory options',
-                  onSelected: (v) => v == 'edit' ? onEdit() : onDelete(),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
-                ),
-              ]),
+              Row(
+                children: [
+                  Text(
+                    'Memory #$index',
+                    style: display(14, weight: 500, color: scheme.secondary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      longDate(memory.date),
+                      style: muted,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'Memory options',
+                    onSelected: (v) => v == 'edit' ? onEdit() : onDelete(),
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      PopupMenuItem(value: 'delete', child: Text('Delete')),
+                    ],
+                  ),
+                ],
+              ),
               Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: Column(
@@ -65,9 +73,12 @@ class MemoryCard extends StatelessWidget {
                       const SizedBox(height: 6),
                     ],
                     if (memory.body.isNotEmpty)
-                      Text(memory.body,
-                          style: theme.textTheme.bodyMedium
-                              ?.copyWith(height: 1.55)),
+                      Text(
+                        memory.body,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          height: 1.55,
+                        ),
+                      ),
                     if (memory.photos.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _PhotoStrip(photos: memory.photos),
@@ -76,12 +87,17 @@ class MemoryCard extends StatelessWidget {
                         memory.hashtags.isNotEmpty)
                       const SizedBox(height: 12),
                     if (memory.location.isNotEmpty)
-                      Row(children: [
-                        Icon(Icons.place_outlined,
-                            size: 16, color: scheme.onSurfaceVariant),
-                        const SizedBox(width: 4),
-                        Expanded(child: Text(memory.location, style: muted)),
-                      ]),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.place_outlined,
+                            size: 16,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(child: Text(memory.location, style: muted)),
+                        ],
+                      ),
                     if (memory.hashtags.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
@@ -90,9 +106,12 @@ class MemoryCard extends StatelessWidget {
                           runSpacing: 2,
                           children: [
                             for (final t in memory.hashtags)
-                              Text('#$t',
-                                  style: theme.textTheme.labelMedium
-                                      ?.copyWith(color: scheme.primary)),
+                              Text(
+                                '#$t',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: scheme.primary,
+                                ),
+                              ),
                           ],
                         ),
                       ),

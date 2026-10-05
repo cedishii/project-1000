@@ -76,8 +76,9 @@ class ArchiveLocation {
   /// launch.
   Future<void> swapInIncoming() async {
     await swapMarker.writeAsString(
-        jsonEncode({'startedAt': DateTime.now().toUtc().toIso8601String()}),
-        flush: true);
+      jsonEncode({'startedAt': DateTime.now().toUtc().toIso8601String()}),
+      flush: true,
+    );
     try {
       if (await live.exists()) await live.rename(previous.path);
       await incoming.rename(live.path);

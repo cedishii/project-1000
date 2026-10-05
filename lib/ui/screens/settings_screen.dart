@@ -23,17 +23,20 @@ class SettingsScreen extends StatelessWidget {
             child: SegmentedButton<ThemeMode>(
               segments: const [
                 ButtonSegment(
-                    value: ThemeMode.system,
-                    icon: Icon(Icons.brightness_auto_outlined),
-                    label: Text('System')),
+                  value: ThemeMode.system,
+                  icon: Icon(Icons.brightness_auto_outlined),
+                  label: Text('System'),
+                ),
                 ButtonSegment(
-                    value: ThemeMode.light,
-                    icon: Icon(Icons.light_mode_outlined),
-                    label: Text('Light')),
+                  value: ThemeMode.light,
+                  icon: Icon(Icons.light_mode_outlined),
+                  label: Text('Light'),
+                ),
                 ButtonSegment(
-                    value: ThemeMode.dark,
-                    icon: Icon(Icons.dark_mode_outlined),
-                    label: Text('Dark')),
+                  value: ThemeMode.dark,
+                  icon: Icon(Icons.dark_mode_outlined),
+                  label: Text('Dark'),
+                ),
               ],
               selected: {store.themeMode},
               onSelectionChanged: (s) => store.setThemeMode(s.first),
@@ -44,7 +47,8 @@ class SettingsScreen extends StatelessWidget {
             leading: const Icon(Icons.upload_file_outlined),
             title: const Text('Export backup'),
             subtitle: const Text(
-                'Save everything — list, memories and photos — to one file'),
+              'Save everything — list, memories and photos — to one file',
+            ),
             onTap: () => exportFlow(context),
           ),
           ListTile(
@@ -59,16 +63,20 @@ class SettingsScreen extends StatelessWidget {
             title: const Text('Reorder items'),
             subtitle: const Text('Change the order of your list'),
             enabled: store.items.length > 1,
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const ReorderScreen())),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ReorderScreen()),
+            ),
           ),
           const _Header('About'),
           ListTile(
             leading: const Icon(Icons.info_outline_rounded),
             title: const Text('About Project: 1000'),
             subtitle: const Text('Version, author, privacy'),
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const AboutScreen())),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AboutScreen()),
+            ),
           ),
         ],
       ),
@@ -83,9 +91,11 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-        child: Text(text,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: Theme.of(context).colorScheme.primary)),
-      );
+    padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+    child: Text(
+      text,
+      style: Theme.of(context).textTheme.labelLarge
+          ?.copyWith(color: Theme.of(context).colorScheme.primary),
+    ),
+  );
 }

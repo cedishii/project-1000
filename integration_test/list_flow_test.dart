@@ -23,8 +23,11 @@ void main() {
   tearDown(() => root.delete(recursive: true));
 
   /// Pumps until [finder] matches (real storage work takes real time).
-  Future<void> waitFor(WidgetTester tester, Finder finder,
-      {bool gone = false}) async {
+  Future<void> waitFor(
+    WidgetTester tester,
+    Finder finder, {
+    bool gone = false,
+  }) async {
     for (var i = 0; i < 100; i++) {
       await tester.pump(const Duration(milliseconds: 100));
       if (finder.evaluate().isNotEmpty != gone) {
@@ -37,7 +40,8 @@ void main() {
 
   Future<void> launch(WidgetTester tester) async {
     await tester.pumpWidget(
-        Project1000App(storeLoader: () => AppStore.open(root: root)));
+      Project1000App(storeLoader: () => AppStore.open(root: root)),
+    );
     await waitFor(tester, find.byType(Scaffold));
     await waitFor(tester, find.byTooltip('Settings'));
   }
@@ -56,7 +60,7 @@ void main() {
   List<String> onScreenOrder(WidgetTester tester, List<String> titles) {
     final present = titles.where((t) => find.text(t).evaluate().isNotEmpty);
     final withY = [
-      for (final t in present) (t, tester.getTopLeft(find.text(t).first).dy)
+      for (final t in present) (t, tester.getTopLeft(find.text(t).first).dy),
     ]..sort((a, b) => a.$2.compareTo(b.$2));
     return withY.map((e) => e.$1).toList();
   }
@@ -84,16 +88,22 @@ void main() {
 
     // Complete the 4th item via its check button.
     Future<void> complete(String title) async {
-      final row = find.ancestor(of: find.text(title), matching: find.byType(Card));
-      await tester.tap(find.descendant(
-          of: row, matching: find.byTooltip('Mark as completed')));
+      final row = find.ancestor(
+        of: find.text(title),
+        matching: find.byType(Card),
+      );
+      await tester.tap(
+        find.descendant(of: row, matching: find.byTooltip('Mark as completed')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, 'Mark as completed'));
       await waitFor(
-          tester,
-          find.descendant(
-              of: find.ancestor(of: find.text(title), matching: find.byType(Card)),
-              matching: find.byTooltip('Mark as not completed')));
+        tester,
+        find.descendant(
+          of: find.ancestor(of: find.text(title), matching: find.byType(Card)),
+          matching: find.byTooltip('Mark as not completed'),
+        ),
+      );
     }
 
     await complete('See a concert');

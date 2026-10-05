@@ -48,7 +48,7 @@ Future<ExportResult> exportBackup({
         for (final ph in (m as Map)['photos'] as List) ...[
           (ph as Map)['file'] as String,
           ph['thumb'] as String,
-        ]
+        ],
   ];
 
   await outDir.create(recursive: true);
@@ -76,14 +76,16 @@ Future<ExportResult> exportBackup({
       'counts': {
         'items': (data['items'] as List).length,
         'memories': [
-          for (final i in data['items'] as List) ...(i as Map)['memories']
+          for (final i in data['items'] as List) ...(i as Map)['memories'],
         ].length,
         'photos': media.length ~/ 2,
       },
     },
   );
-  final missing = await runWithProgress((report) => _writeZip(job, report),
-      onProgress: onProgress);
+  final missing = await runWithProgress(
+    (report) => _writeZip(job, report),
+    onProgress: onProgress,
+  );
   final counts = job.manifestBase['counts'] as Map;
   return ExportResult(
     file: File(outPath),
@@ -105,7 +107,9 @@ Future<Map<String, Object?>> _snapshot(Transaction txn) async {
 
   final tagsBy = <String, List<String>>{};
   for (final t in tags) {
-    tagsBy.putIfAbsent(t['memory_id'] as String, () => []).add(t['tag'] as String);
+    tagsBy
+        .putIfAbsent(t['memory_id'] as String, () => [])
+        .add(t['tag'] as String);
   }
   final photosBy = <String, List<Map<String, Object?>>>{};
   for (final ph in photos) {
@@ -151,7 +155,7 @@ Future<Map<String, Object?>> _snapshot(Transaction txn) async {
           'createdAt': i['created_at'],
           'updatedAt': i['updated_at'],
           'memories': memoriesBy[i['id']] ?? const [],
-        }
+        },
     ],
   };
 }
@@ -174,7 +178,9 @@ class _ZipJob {
 
 /// Runs on a background isolate. Returns the list of missing files.
 Future<List<String>> _writeZip(
-    _ZipJob job, void Function(double) report) async {
+  _ZipJob job,
+  void Function(double) report,
+) async {
   final partial = File('${job.outPath}.partial');
   final encoder = ZipFileEncoder()..create(partial.path);
   final files = <String, Object>{};
@@ -199,8 +205,9 @@ Future<List<String>> _writeZip(
       // Photos are already compressed: store them as-is, streamed from
       // disk, so even very large archives never sit in memory.
       final input = InputFileStream(file.path);
-      encoder.addArchiveFile(ArchiveFile.stream(rel, input)
-        ..compression = CompressionType.none);
+      encoder.addArchiveFile(
+        ArchiveFile.stream(rel, input)..compression = CompressionType.none,
+      );
       await input.close();
     }
 
@@ -214,9 +221,12 @@ Future<List<String>> _writeZip(
       'files': files,
       'missingAtExport': missing,
     };
-    encoder.addArchiveFile(ArchiveFile.bytes(
+    encoder.addArchiveFile(
+      ArchiveFile.bytes(
         manifestName,
-        utf8.encode(const JsonEncoder.withIndent('  ').convert(manifest))));
+        utf8.encode(const JsonEncoder.withIndent('  ').convert(manifest)),
+      ),
+    );
     await encoder.close();
   } catch (_) {
     try {
