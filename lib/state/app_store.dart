@@ -219,12 +219,14 @@ class AppStore extends ChangeNotifier {
   }
 
   /// Writes a backup .zip into [outDir].
-  Future<ExportResult> exportBackup(Directory outDir, String appVersion) =>
+  Future<ExportResult> exportBackup(Directory outDir, String appVersion,
+          {void Function(double progress)? onProgress}) =>
       export_service.exportBackup(
         db: _db,
         archiveDir: location.live,
         outDir: outDir,
         appVersion: appVersion,
+        onProgress: onProgress,
       );
 
   Future<void> close() => _db.close();

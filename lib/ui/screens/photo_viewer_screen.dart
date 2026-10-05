@@ -21,10 +21,20 @@ class PhotoViewerScreen extends StatefulWidget {
 class _PhotoViewerScreenState extends State<PhotoViewerScreen> {
   late final _controller = PageController(initialPage: widget.initialIndex);
   late int _index = widget.initialIndex;
+  final _zoom = TransformationController();
+
+  /// While zoomed in, drags pan the photo instead of changing pages.
+  bool _zoomed = false;
+
+  void _onInteractionEnd(ScaleEndDetails _) {
+    final zoomed = _zoom.value.getMaxScaleOnAxis() > 1.01;
+    if (zoomed != _zoomed) setState(() => _zoomed = zoomed);
+  }
 
   @override
   void dispose() {
     _controller.dispose();
+    _zoom.dispose();
     super.dispose();
   }
 
@@ -48,10 +58,20 @@ class _PhotoViewerScreenState extends State<PhotoViewerScreen> {
       body: PageView.builder(
         controller: _controller,
         itemCount: widget.photos.length,
-        onPageChanged: (i) => setState(() => _index = i),
+        physics: _zoomed
+            ? const NeverScrollableScrollPhysics()
+            : const PageScrollPhysics(),
+        onPageChanged: (i) => setState(() {
+          _index = i;
+          _zoom.value = Matrix4.identity();
+          _zoomed = false;
+        }),
         itemBuilder: (context, i) {
           final photo = widget.photos[i];
           return InteractiveViewer(
+            transformationController: i == _index ? _zoom : null,
+            panEnabled: _zoomed,
+            onInteractionEnd: _onInteractionEnd,
             maxScale: 5,
             child: Center(
               child: Image(

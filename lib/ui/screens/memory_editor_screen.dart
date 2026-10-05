@@ -233,8 +233,10 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
           return;
         }
         final discard = await confirm(context,
-            title: 'Discard this memory?',
-            message: 'Your changes haven\'t been saved.',
+            title: _isNew ? 'Discard this memory?' : 'Discard your changes?',
+            message: _isNew
+                ? 'What you wrote hasn\'t been saved.'
+                : 'The memory stays as it was before you started editing.',
             confirmLabel: 'Discard',
             destructive: true);
         if (discard && context.mounted) {

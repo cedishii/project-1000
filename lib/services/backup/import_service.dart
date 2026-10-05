@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:developer' as dev;
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
@@ -12,6 +11,7 @@ import 'package:sqflite/sqflite.dart';
 import '../../data/archive_location.dart';
 import '../../data/database.dart';
 import '../../data/models.dart';
+import '../background.dart';
 import 'backup_format.dart';
 
 /// A backup that has been fully unpacked and checked, waiting for the
@@ -45,11 +45,15 @@ class ImportPreview {
 ///
 /// Throws [ImportException] with a user-facing reason on failure, after
 /// removing the partial `archive_incoming` folder.
-Future<ImportPreview> prepareImport(String zipPath, ArchiveLocation location) async {
+Future<ImportPreview> prepareImport(String zipPath, ArchiveLocation location,
+    {void Function(double progress)? onProgress}) async {
   final incoming = location.incoming;
   if (await incoming.exists()) await incoming.delete(recursive: true);
   try {
-    return await Isolate.run(() => _unpackAndValidate(zipPath, incoming.path));
+    final path = incoming.path;
+    return await runWithProgress(
+        (report) => _unpackAndValidate(zipPath, path, report),
+        onProgress: onProgress);
   } catch (e, s) {
     dev.log('Import validation failed', error: e, stackTrace: s, name: 'backup');
     if (await incoming.exists()) {
@@ -157,7 +161,8 @@ bool _outOfSpace(FileSystemException e) {
 // ---------------------------------------------------------------------------
 // Runs on a background isolate.
 
-ImportPreview _unpackAndValidate(String zipPath, String incomingPath) {
+ImportPreview _unpackAndValidate(
+    String zipPath, String incomingPath, void Function(double) report) {
   final input = InputFileStream(zipPath);
   try {
     final Archive archive;
@@ -213,7 +218,9 @@ ImportPreview _unpackAndValidate(String zipPath, String incomingPath) {
           ...(m['photos'] as List).cast<Map>()
     ];
     final good = <String>{};
+    var done = 0;
     for (final ph in referenced) {
+      if (++done % 10 == 0) report(done / referenced.length);
       for (final rel in [ph['file'] as String, ph['thumb'] as String]) {
         if (good.contains(rel)) continue;
         if (_extractVerified(entries[rel], fileInfo[rel], incomingPath, rel)) {

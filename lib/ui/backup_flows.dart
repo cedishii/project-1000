@@ -23,12 +23,14 @@ const _channel = MethodChannel('project_1000/backup_file');
 /// Creates a backup and lets the user save or share it.
 Future<void> exportFlow(BuildContext context) async {
   final store = StoreScope.read(context);
-  final close = _showProgress(context, 'Preparing your backup…');
+  final progress = ValueNotifier<double?>(null);
+  final close = _showProgress(context, 'Preparing your backup…', progress);
   ExportResult result;
   try {
     final info = await PackageInfo.fromPlatform();
     final out = Directory(p.join((await getTemporaryDirectory()).path, 'exports'));
-    result = await store.exportBackup(out, '${info.version}+${info.buildNumber}');
+    result = await store.exportBackup(out, '${info.version}+${info.buildNumber}',
+        onProgress: (v) => progress.value = v);
   } catch (e, s) {
     close();
     dev.log('Export failed', error: e, stackTrace: s, name: 'backup');
@@ -175,12 +177,22 @@ Future<void> importFlow(BuildContext context) async {
   final store = StoreScope.read(context);
 
   final String path;
+  VoidCallback? closeOpening;
   try {
     final picked = await FilePicker.pickFiles(
-        dialogTitle: 'Choose a Project: 1000 backup');
+      dialogTitle: 'Choose a Project: 1000 backup',
+      // Large backups take a while to copy from Drive/Downloads.
+      onFileLoading: (status) {
+        if (status == FilePickerStatus.picking && context.mounted) {
+          closeOpening ??= _showProgress(context, 'Opening file…');
+        }
+      },
+    );
+    closeOpening?.call();
     if (picked.isEmpty || picked.single.path == null) return;
     path = picked.single.path!;
   } catch (e, s) {
+    closeOpening?.call();
     dev.log('Picker failed', error: e, stackTrace: s, name: 'backup');
     if (context.mounted) {
       await _alert(context, 'Couldn\'t open the file',
@@ -191,10 +203,12 @@ Future<void> importFlow(BuildContext context) async {
   }
   if (!context.mounted) return;
 
-  var close = _showProgress(context, 'Checking backup…');
+  final progress = ValueNotifier<double?>(null);
+  var close = _showProgress(context, 'Checking every file in the backup…', progress);
   ImportPreview preview;
   try {
-    preview = await prepareImport(path, store.location);
+    preview = await prepareImport(path, store.location,
+        onProgress: (v) => progress.value = v);
   } on ImportException catch (e) {
     close();
     if (context.mounted) await _alert(context, 'Can\'t import this file', e.problem.message);
@@ -326,7 +340,9 @@ Future<void> _clearPickerCache() async {
 // ----------------------------------------------------------------- helpers
 
 /// Shows a non-dismissible progress dialog; returns a function closing it.
-VoidCallback _showProgress(BuildContext context, String message) {
+/// If [progress] is given, a bar shows how far along the work is.
+VoidCallback _showProgress(BuildContext context, String message,
+    [ValueNotifier<double?>? progress]) {
   final navigator = Navigator.of(context, rootNavigator: true);
   var open = true;
   showDialog<void>(
@@ -336,12 +352,28 @@ VoidCallback _showProgress(BuildContext context, String message) {
     builder: (_) => PopScope(
       canPop: false,
       child: AlertDialog(
-        content: Row(children: [
-          const SizedBox(
-              width: 28, height: 28, child: CircularProgressIndicator()),
-          const SizedBox(width: 20),
-          Expanded(child: Text(message)),
-        ]),
+        content: ValueListenableBuilder<double?>(
+          valueListenable: progress ?? ValueNotifier(null),
+          builder: (context, value, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                const SizedBox(
+                    width: 28, height: 28, child: CircularProgressIndicator()),
+                const SizedBox(width: 20),
+                Expanded(child: Text(message)),
+              ]),
+              if (value != null) ...[
+                const SizedBox(height: 18),
+                LinearProgressIndicator(value: value),
+                const SizedBox(height: 6),
+                Text('${(value * 100).floor()}%',
+                    style: Theme.of(context).textTheme.labelSmall),
+              ],
+            ],
+          ),
+        ),
       ),
     ),
   ).whenComplete(() => open = false);

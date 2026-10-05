@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
+import '../background.dart';
 import 'backup_format.dart';
 
 class ExportResult {
@@ -38,6 +38,7 @@ Future<ExportResult> exportBackup({
   required Directory outDir,
   required String appVersion,
   DateTime? now,
+  void Function(double progress)? onProgress,
 }) async {
   final exportedAt = (now ?? DateTime.now());
   final data = await db.transaction((txn) => _snapshot(txn));
@@ -81,7 +82,8 @@ Future<ExportResult> exportBackup({
       },
     },
   );
-  final missing = await Isolate.run(() => _writeZip(job));
+  final missing = await runWithProgress((report) => _writeZip(job, report),
+      onProgress: onProgress);
   final counts = job.manifestBase['counts'] as Map;
   return ExportResult(
     file: File(outPath),
@@ -171,7 +173,8 @@ class _ZipJob {
 }
 
 /// Runs on a background isolate. Returns the list of missing files.
-Future<List<String>> _writeZip(_ZipJob job) async {
+Future<List<String>> _writeZip(
+    _ZipJob job, void Function(double) report) async {
   final partial = File('${job.outPath}.partial');
   final encoder = ZipFileEncoder()..create(partial.path);
   final files = <String, Object>{};
@@ -180,7 +183,9 @@ Future<List<String>> _writeZip(_ZipJob job) async {
     final dataBytes = utf8.encode(job.dataJson);
     encoder.addArchiveFile(ArchiveFile.bytes(dataName, dataBytes));
 
+    var done = 0;
     for (final rel in job.media) {
+      if (++done % 10 == 0) report(done / job.media.length * 0.95);
       if (files.containsKey(rel)) continue;
       final file = File(p.join(job.archiveDir, rel));
       if (!file.existsSync()) {

@@ -42,7 +42,9 @@ String backupFileName(DateTime now) {
 
 /// Problems an import can run into, each with a plain-language message.
 enum ImportProblem {
-  notABackup('This file isn\'t a Project: 1000 backup.'),
+  notABackup('This file isn\'t a Project: 1000 backup, or it is damaged '
+      '(for example, an incomplete download). Your current list was not '
+      'changed.'),
   corrupted('This backup file is damaged and can\'t be read. Your current '
       'list was not changed.'),
   newerVersion('This backup was made by a newer version of Project: 1000. '
