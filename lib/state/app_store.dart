@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -14,6 +14,7 @@ import '../data/progression.dart';
 import '../services/backup/export_service.dart' as export_service;
 import '../services/backup/export_service.dart' show ExportResult;
 import '../services/backup/import_service.dart';
+import '../services/cloud/synced_archive.dart';
 import '../services/media_store.dart';
 import '../services/photo_storage.dart';
 
@@ -26,7 +27,35 @@ import '../services/photo_storage.dart';
 /// import exist only for the local archive ([isLocal]).
 class AppStore extends ChangeNotifier {
   AppStore(this.backend, this.media, {this.account, this.isOwner = false})
-    : _local = null;
+    : _local = null {
+    // Changes made on other devices arrived in this phone's copy.
+    if (backend case final SyncedArchive synced) {
+      synced.dataVersion.addListener(_onRemoteChange);
+    }
+  }
+
+  void _onRemoteChange() {
+    memoryRevision++;
+    journeyRevision++;
+    load().catchError((Object e, StackTrace s) {});
+  }
+
+  /// How this phone's copy of the account stands (null when the archive
+  /// isn't a synced copy: the phone's own, or the website).
+  ValueListenable<SyncStatus>? get syncStatus => switch (backend) {
+    SyncedArchive(:final status) => status,
+    _ => null,
+  };
+
+  /// Brings in changes made elsewhere: syncs this phone's copy, or
+  /// reloads the account's list on the website.
+  Future<void> refresh() async {
+    if (backend case final SyncedArchive synced) {
+      await synced.sync();
+    } else if (!isLocal) {
+      await load();
+    }
+  }
 
   AppStore._local(LocalArchive local)
     : backend = local,
@@ -382,5 +411,11 @@ class AppStore extends ChangeNotifier {
   Future<Map<String, Object?>> archiveSnapshot() =>
       export_service.archiveSnapshot(_localArchive.db);
 
-  Future<void> close() async => _local?.close();
+  Future<void> close() async {
+    await _local?.close();
+    if (backend case final SyncedArchive synced) {
+      synced.dataVersion.removeListener(_onRemoteChange);
+      await synced.close();
+    }
+  }
 }

@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../core/log.dart';
 import '../../services/cloud/account.dart';
 import '../../services/cloud/cloud_migration.dart';
+import '../../services/cloud/synced_archive.dart';
 import '../app.dart';
 import '../feedback.dart';
 import '../store_scope.dart';
@@ -84,14 +85,23 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   Future<void> _signOut() async {
+    final store = StoreScope.read(context);
+    final pending = store.syncStatus?.value.pending ?? 0;
+    final it = pending == 1 ? 'it' : 'them';
     final ok = await confirm(
       context,
       title: 'Sign out?',
       message: kIsWeb
           ? 'You can sign in again any time. Your list stays in your account.'
-          : 'This phone will go back to its own archive. Your account\'s list '
+          : pending > 0
+          ? "${pending == 1 ? '1 change' : '$pending changes'} made on this "
+                "phone haven't reached your account yet (no connection). "
+                'Signing out now loses $it. Connect to the internet first '
+                'to keep $it.'
+          : "This phone will go back to its own archive. Your account's list "
                 'stays in your account.',
-      confirmLabel: 'Sign out',
+      confirmLabel: pending > 0 ? 'Sign out anyway' : 'Sign out',
+      destructive: pending > 0,
     );
     if (!ok || !mounted) return;
     try {
@@ -99,18 +109,20 @@ class _AccountScreenState extends State<AccountScreen> {
     } catch (e, s) {
       logError('Sign-out failed', e, s);
     }
-    if (!kIsWeb) {
-      await DeviceMode(await getApplicationDocumentsDirectory())
-          .setUsesCloud(false);
-    }
     if (!mounted) return;
-    final store = StoreScope.read(context);
-    if (kIsWeb || !store.isLocal) {
-      Navigator.of(context).popUntil((r) => r.isFirst);
+    if (kIsWeb) {
       await AppRestart.of(context);
-    } else {
-      _refresh();
+      return;
     }
+    final dir = await getApplicationDocumentsDirectory();
+    await DeviceMode(dir).setUsesCloud(false);
+    if (!store.isLocal && mounted) {
+      // Back to the phone's own archive (this also closes the copy).
+      await AppRestart.of(context);
+    }
+    // The account's copy doesn't stay on the phone after signing out.
+    await SyncedArchive.deleteAll(dir);
+    if (mounted && store.isLocal) _refresh();
   }
 
   @override

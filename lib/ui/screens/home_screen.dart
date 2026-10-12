@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/models.dart';
+import '../../services/cloud/synced_archive.dart';
 import '../../state/app_store.dart';
 import '../../state/list_view_filter.dart';
 import '../app.dart';
@@ -211,6 +213,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
+          if (store.syncStatus case final status?)
+            _SyncIndicator(status: status, onTap: store.refresh),
           if (items.length > 1)
             IconButton(
               tooltip: 'Reorder list',
@@ -452,4 +456,43 @@ class _NothingSelected extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Shown only when this phone's copy of the account has something to
+/// say: changes waiting to be sent, or no connection.
+class _SyncIndicator extends StatelessWidget {
+  const _SyncIndicator({required this.status, required this.onTap});
+
+  final ValueListenable<SyncStatus> status;
+  final Future<void> Function() onTap;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: status,
+    builder: (context, s, _) {
+      if (s.pending == 0 && !s.offline) return const SizedBox.shrink();
+      final waiting = s.pending == 1 ? '1 change' : '${s.pending} changes';
+      final message = s.offline
+          ? (s.pending == 0
+                ? 'Offline. Your list is saved on this phone and will '
+                      'update when you\'re back online.'
+                : 'Offline. $waiting saved on this phone will be sent to '
+                      'your account when you\'re back online.')
+          : '$waiting being sent to your account…';
+      return IconButton(
+        tooltip: message,
+        icon: Badge(
+          isLabelVisible: s.pending > 0,
+          label: Text('${s.pending}'),
+          child: Icon(
+            s.offline ? Icons.cloud_off_outlined : Icons.cloud_upload_outlined,
+          ),
+        ),
+        onPressed: () {
+          showMessage(context, message);
+          onTap();
+        },
+      );
+    },
+  );
 }

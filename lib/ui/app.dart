@@ -61,7 +61,7 @@ class _Project1000AppState extends State<Project1000App>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final store = _store;
     if (state == AppLifecycleState.resumed && store != null && !store.isLocal) {
-      store.load().catchError((Object e, StackTrace s) {
+      store.refresh().catchError((Object e, StackTrace s) {
         logError('Refresh failed', e, s);
       });
     }

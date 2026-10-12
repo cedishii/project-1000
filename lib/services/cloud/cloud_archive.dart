@@ -234,9 +234,18 @@ class CloudArchive implements ArchiveBackend {
   // --------------------------------------------------------------- writes
 
   @override
-  Future<BucketItem> addItem(String title, String description) async {
+  Future<BucketItem> addItem(String title, String description) =>
+      addItemWithId(ArchiveRepository.newId(), title, description);
+
+  /// [addItem] with the id chosen by the caller (a change made offline
+  /// keeps its id when it is sent later).
+  Future<BucketItem> addItemWithId(
+    String id,
+    String title,
+    String description,
+  ) async {
     final row = await _rpc('add_item', {
-      'p_id': ArchiveRepository.newId(),
+      'p_id': id,
       'p_title': title,
       'p_description': description,
     });
@@ -244,19 +253,56 @@ class CloudArchive implements ArchiveBackend {
   }
 
   @override
-  Future<void> updateItemText(
+  Future<void> updateItemText(String id, String title, String description) =>
+      updateItemTextChecked(id, title, description, checkRevision: true);
+
+  /// With [checkRevision] false the edit applies whatever changed since
+  /// (used for edits made offline: the last edit to arrive wins).
+  Future<void> updateItemTextChecked(
     String id,
     String title,
-    String description,
-  ) async {
+    String description, {
+    required bool checkRevision,
+  }) async {
     final row = await _rpc('update_item', {
       'p_id': id,
       'p_title': title,
       'p_description': description,
-      'p_expected_revision': _revisions[id],
+      'p_expected_revision': checkRevision ? _revisions[id] : null,
     });
     _revisions[id] = (row as Map)['revision'] as int;
   }
+
+  /// Saves a memory whose photo files are already in storage (or are
+  /// uploaded first from [uploads]: path → bytes). Returns the files the
+  /// memory no longer uses, already removed from storage.
+  Future<void> saveMemoryRow(
+    Map<String, Object?> memory, {
+    Map<String, Uint8List> uploads = const {},
+  }) async {
+    for (final e in uploads.entries) {
+      await _call(() => media.upload(e.key, e.value));
+    }
+    final result = await _rpc('save_memory', {'p_memory': memory}) as Map;
+    await media.remove((result['removedFiles'] as List).cast<String>());
+  }
+
+  /// Uploads [bytes] as the profile picture at [path] and saves
+  /// [profile] (which already refers to it); removes [oldPhoto].
+  Future<void> setProfilePhotoAt(
+    Profile profile,
+    String path,
+    Uint8List bytes, {
+    String? oldPhoto,
+  }) async {
+    await _call(() => media.upload(path, bytes));
+    await saveProfile(profile);
+    if (oldPhoto != null && oldPhoto != path) await media.remove([oldPhoto]);
+  }
+
+  /// `pull_changes`: rows changed and ids deleted after [since].
+  Future<Map<String, Object?>> pullChanges(int since) async =>
+      ((await _rpc('pull_changes', {'p_since': since})) as Map).cast();
 
   @override
   Future<void> setCompleted(String id, bool completed, {CalendarDate? on}) =>
