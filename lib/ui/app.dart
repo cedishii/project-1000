@@ -28,10 +28,12 @@ class Project1000App extends StatefulWidget {
   State<Project1000App> createState() => _Project1000AppState();
 }
 
-class _Project1000AppState extends State<Project1000App> {
+class _Project1000AppState extends State<Project1000App>
+    with WidgetsBindingObserver {
   AppStore? _store;
   Object? _error;
   SignInRequired? _signIn;
+
   /// A new navigator for every state (loading, sign-in, each opened
   /// archive), so no screen of a previous state survives.
   var _navigator = GlobalKey<NavigatorState>();
@@ -40,6 +42,7 @@ class _Project1000AppState extends State<Project1000App> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
     if (CloudConfig.isReady) {
       // A password-reset link signs the user in; ask for the new password.
@@ -51,8 +54,22 @@ class _Project1000AppState extends State<Project1000App> {
     }
   }
 
+  /// A cloud archive may have changed on another device (the website, a
+  /// second phone) while this one was in the background: reload it when
+  /// the app comes back. The phone's own archive can't change elsewhere.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final store = _store;
+    if (state == AppLifecycleState.resumed && store != null && !store.isLocal) {
+      store.load().catchError((Object e, StackTrace s) {
+        logError('Refresh failed', e, s);
+      });
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _auth?.cancel();
     super.dispose();
   }

@@ -1,13 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Used only by the optional Project: 1000 account (signing in, the
+         account's list and photos). Without signing in the app makes no
+         network requests. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="Project: 1000"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
         android:fullBackupContent="false">
-        <!-- Privacy: the app never uploads anything, and Android's automatic
-             cloud app-backup is disabled. Moving to a new phone is done with
-             the app's own Export/Import backup file. -->
+        <!-- Privacy: nothing is uploaded unless the user signs in to their
+             own account and chooses to; Android's automatic cloud app-backup
+             is disabled. Moving to a new phone is done with the app's own
+             Export/Import backup file (or the account). -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
