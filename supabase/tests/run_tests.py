@@ -766,6 +766,46 @@ def new_member_starts_with_journey_one(w: World):
     eq(item["number"], 1, "item #1")
 
 
+@test
+def read_helpers_match_the_phone(w: World):
+    u = w.new_member("m")
+    eq(w.rpc(u, "select (public.ensure_active_journey()).number")[0][0], 1, "journey 1 created")
+    eq(w.rpc(u, "select count(*) from public.journeys")[0][0], 1, "only once")
+    w.rpc(u, "select public.ensure_active_journey()")
+    eq(w.rpc(u, "select count(*) from public.journeys")[0][0], 1, "idempotent")
+    a = add_item(w, u, "Travel to Japan")
+    b = add_item(w, u, "100% honest_day")
+    c = add_item(w, u, "Something else")
+    save_memory(w, u, c["id"], text="Tokyo at night", hashtags=["travel", "夢"], location="Iceland")
+    save_memory(w, u, c["id"], text="second", photos=[photo(), photo()])
+    def search(q, j=None):
+        rows = w.rpc(u, "select x::text from public.search_item_ids(:q, cast(:j as uuid)) x", q=q, j=j)
+        return sorted(r[0] for r in rows or [])
+    eq(search("japan"), [a["id"]], "case-insensitive title")
+    eq(search("#TRAVEL"), sorted([a["id"], c["id"]]), "hashtag with #")
+    eq(search("夢"), [c["id"]], "unicode hashtag")
+    eq(search("iceland"), [c["id"]], "location")
+    eq(search("2"), [b["id"]], "number")
+    eq(search("100%"), [b["id"]], "percent is literal")
+    eq(search("_"), [b["id"]], "underscore is literal")
+    eq(search("   "), [], "empty")
+    counts = dict((str(r[0]), r[1]) for r in w.rpc(u, "select * from public.memory_counts()"))
+    eq(counts, {c["id"]: 2}, "memory counts")
+    w.rpc(u, "select public.set_item_completed(:i, true, '2026-10-01')", i=c["id"])
+    j = w.rpc(u, "select id::text from public.journeys")[0][0]
+    outline = w.rpc(u, "select public.album_outline(:j)", j=j)[0][0]
+    eq([e["item"]["id"] for e in outline], [c["id"]], "only completed items")
+    eq([(m["textLength"], m["photoCount"]) for m in outline[0]["memories"]],
+       [(len("Tokyo at night"), 0), (len("second"), 2)], "memory sizes")
+    # Another member sees none of it.
+    v = w.new_member("v")
+    eq(w.rpc(v, "select count(*) from public.search_item_ids('travel', cast(:j as uuid))", j=j)[0][0],
+       0, "search isolation")
+    eq(w.rpc(v, "select public.album_outline(:j)", j=j)[0][0], [], "album isolation")
+    eq(w.rpc(v, "select count(*) from public.memory_counts(cast(:j as uuid))", j=j)[0][0], 0,
+       "count isolation")
+
+
 # --- migration -------------------------------------------------------------
 
 def fixture() -> dict:
