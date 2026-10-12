@@ -264,7 +264,7 @@ Never point the tests at the production database.
 ## What's left (next phase)
 
 1. ~~Create the Supabase project and apply the migrations.~~ Done
-   2026-10-12. Still to do: sign up, then run `private.bootstrap_owner`.
+   2026-10-12, owner account set up the same day.
 2. Run the tests against `supabase start` or a staging project.
 3. Phone: add `supabase_flutter`, a sign-in screen, an implementation of
    `CloudArchiveApi`, the migration screen, and cloud mode for
