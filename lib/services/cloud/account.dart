@@ -16,7 +16,14 @@ class CloudConfig {
   static const anonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
   /// Where password-reset and confirmation links lead (the website).
-  static const siteUrl = String.fromEnvironment('P1000_SITE_URL');
+  /// The website itself uses its own address unless one is given; on a
+  /// phone, an empty value means the project's Site URL (Supabase Auth
+  /// settings).
+  static String get siteUrl {
+    const configured = String.fromEnvironment('P1000_SITE_URL');
+    if (configured.isNotEmpty) return configured;
+    return kIsWeb ? Uri.base.origin : '';
+  }
 
   static bool get isConfigured => url.isNotEmpty && anonKey.isNotEmpty;
 
