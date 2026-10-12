@@ -418,6 +418,28 @@ def owner_can_add_a_member_directly_from_the_sql_editor(w: World):
     eq(w.rpc(friend, "select status from public.members"), [["active"]], "re-enabled")
 
 
+@test
+def approved_email_can_claim_membership_after_signing_up(w: World):
+    w.invite("friend@example.test")  # owner approves the email
+    friend = w.new_user("x")
+    w.db.admin("update auth.users set email = 'friend@example.test' where id = :u", u=friend)
+    eq(w.rpc(friend, "select public.claim_membership()")[0][0], "accepted", "claim")
+    eq(w.rpc(friend, "select public.claim_membership()")[0][0], "already_member", "again")
+    eq(w.rpc(friend, "select role from public.members"), [["member"]], "member")
+    # Not approved, unconfirmed, expired or revoked emails get nothing.
+    stranger = w.new_user("stranger")
+    eq(w.rpc(stranger, "select public.claim_membership()")[0][0], "not_invited", "stranger")
+    unconfirmed = w.new_user("u", confirmed=False)
+    w.invite(w.email_of[unconfirmed])
+    eq(w.rpc(unconfirmed, "select public.claim_membership()")[0][0], "not_invited", "unconfirmed")
+    late = w.new_user("late")
+    w.invite(w.email_of[late])
+    w.db.admin("update private.invitations set expires_at = now() - interval '1 minute' "
+               "where email = :e", e=w.email_of[late])
+    eq(w.rpc(late, "select public.claim_membership()")[0][0], "not_invited", "expired")
+    expect_error(lambda: w.rpc(None, "select public.claim_membership()"), "42501")
+
+
 # --- isolation -------------------------------------------------------------
 
 def own_or_forbidden(fn):

@@ -258,6 +258,20 @@ Signed in as the owner, the web app will call:
 returned token privately. After signing up with that email, the friend
 calls `redeem_invitation(token)`.
 
+### 3a. Recommended: friends sign up themselves on the website
+
+1. You approve their email: `select * from create_invitation('friend@example.com');`
+   (from the web admin page later; the token isn't needed for this path).
+2. They open the website, choose **Sign up**, and pick their own
+   password. You never learn it.
+3. They click the confirmation link Supabase emails them, sign in, and
+   the app calls `claim_membership()`, which admits them because their
+   confirmed email was approved.
+
+Unapproved, unconfirmed, expired or revoked emails get nothing. With the
+optional sign-up hook enabled, unapproved emails can't even create a
+login.
+
 ### 3b. Or add a friend directly (no token)
 
 1. Authentication → Users → **Add user** → *Create new user*: their
