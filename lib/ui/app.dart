@@ -124,8 +124,8 @@ class _Project1000AppState extends State<Project1000App>
       navigatorKey: _navigator,
       title: appName,
       debugShowCheckedModeBanner: false,
-      theme: buildTheme(Brightness.light),
-      darkTheme: buildTheme(Brightness.dark),
+      theme: withReadablePages(buildTheme(Brightness.light)),
+      darkTheme: withReadablePages(buildTheme(Brightness.dark)),
       themeMode: mode,
       // Every route (not just home) can reach the store and restart the
       // app; on wide screens content keeps a readable width.

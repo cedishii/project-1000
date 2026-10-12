@@ -12,9 +12,13 @@ import 'item_editor_screen.dart';
 import 'memory_editor_screen.dart';
 
 class ItemDetailScreen extends StatefulWidget {
-  const ItemDetailScreen({super.key, required this.itemId});
+  const ItemDetailScreen({super.key, required this.itemId, this.onClose});
 
   final String itemId;
+
+  /// Set when shown beside the list (wide screens) instead of as its own
+  /// page: called instead of going back, e.g. after deleting the item.
+  final VoidCallback? onClose;
 
   @override
   State<ItemDetailScreen> createState() => _ItemDetailScreenState();
@@ -64,13 +68,16 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     final item = store.itemById(widget.itemId);
     if (item == null) {
       // Deleted while open.
-      return Scaffold(appBar: AppBar());
+      return Scaffold(
+        appBar: AppBar(automaticallyImplyLeading: widget.onClose == null),
+      );
     }
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: widget.onClose == null,
         actions: [
           IconButton(
             tooltip: 'Edit',
@@ -85,7 +92,10 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             onSelected: (value) async {
               if (value == 'delete') {
                 final deleted = await deleteItemFlow(context, item);
-                if (deleted && context.mounted) Navigator.pop(context);
+                if (deleted && context.mounted) {
+                  final close = widget.onClose;
+                  close != null ? close() : Navigator.pop(context);
+                }
               }
             },
             itemBuilder: (_) => const [

@@ -9,6 +9,7 @@ import '../app.dart';
 import '../feedback.dart';
 import '../formatting.dart';
 import '../item_actions.dart';
+import '../layout.dart';
 import '../store_scope.dart';
 import '../theme.dart';
 import '../widgets/emblem.dart';
@@ -39,6 +40,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _debounce;
   AppStore? _store;
   int _searchGeneration = 0;
+
+  /// The item shown beside the list on wide screens.
+  String? _selected;
+  bool _twoPane = false;
 
   @override
   void didChangeDependencies() {
@@ -123,13 +128,51 @@ class _HomeScreenState extends State<HomeScreen> {
     MaterialPageRoute(builder: (_) => const ProfileScreen()),
   );
 
-  void _open(BucketItem item) => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => ItemDetailScreen(itemId: item.id)),
-  );
+  void _open(BucketItem item) {
+    if (_twoPane) {
+      setState(() => _selected = item.id);
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ItemDetailScreen(itemId: item.id)),
+    );
+  }
 
+  /// Wide screens: the list and the selected thing side by side. The
+  /// list keeps its phone layout; nothing is reordered or hidden.
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _twoPane = constraints.maxWidth >= Breakpoints.twoPane;
+        if (!_twoPane) return _list(context);
+        final store = StoreScope.of(context);
+        final selected = _selected == null ? null : store.itemById(_selected!);
+        final scheme = Theme.of(context).colorScheme;
+        return Row(
+          children: [
+            SizedBox(width: listPaneWidth, child: _list(context)),
+            VerticalDivider(
+              width: 1,
+              color: scheme.outlineVariant.withValues(alpha: 0.6),
+            ),
+            Expanded(
+              child: selected == null
+                  ? const _NothingSelected()
+                  : ItemDetailScreen(
+                      key: ValueKey(selected.id),
+                      itemId: selected.id,
+                      onClose: () => setState(() => _selected = null),
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _list(BuildContext context) {
     final store = StoreScope.of(context);
     final items = store.items;
     final scheme = Theme.of(context).colorScheme;
@@ -311,6 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           memoryCount: store.memoryCountOf(item.id),
                           onTap: () => _open(item),
                           onToggle: () => toggleCompletion(context, item),
+                          selected: _twoPane && item.id == _selected,
                         );
                       },
                     ),
@@ -378,6 +422,32 @@ class _EmptyList extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The detail side before anything is chosen.
+class _NothingSelected extends StatelessWidget {
+  const _NothingSelected();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ColoredBox(
+      color: scheme.surface,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Emblem(size: 72),
+            const SizedBox(height: 16),
+            Text(
+              'Choose a thing to see it here.',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ],
         ),
       ),
     );

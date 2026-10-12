@@ -80,11 +80,15 @@ class ItemTile extends StatelessWidget {
     required this.memoryCount,
     required this.onTap,
     this.onToggle,
+    this.selected = false,
   });
 
   final BucketItem item;
   final int memoryCount;
   final VoidCallback onTap;
+
+  /// Shown next to the list (wide screens): highlighted.
+  final bool selected;
 
   /// Null for a read-only row (an archived journey).
   final VoidCallback? onToggle;
@@ -95,6 +99,7 @@ class ItemTile extends StatelessWidget {
     final scheme = theme.colorScheme;
     return Card(
       clipBehavior: Clip.antiAlias,
+      color: selected ? scheme.secondaryContainer : null,
       child: InkWell(
         onTap: onTap,
         child: Padding(
