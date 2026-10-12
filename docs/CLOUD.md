@@ -258,6 +258,19 @@ Signed in as the owner, the web app will call:
 returned token privately. After signing up with that email, the friend
 calls `redeem_invitation(token)`.
 
+### 3b. Or add a friend directly (no token)
+
+1. Authentication → Users → **Add user** → *Create new user*: their
+   email and a temporary password, with **Auto Confirm User** ticked.
+2. SQL editor: `select private.add_member('friend@example.com');`
+3. Give them the temporary password privately and ask them to change it
+   at first sign-in (the apps need a "change password" screen for this).
+   Until they change it, you know their password and could read their
+   memories, which the role rules otherwise prevent.
+
+Re-running `add_member` re-enables a disabled member. The function is
+not callable through the API.
+
 ### 4. Environment
 
 Copy `.env.example` to `.env`. Clients only ever need `SUPABASE_URL` and

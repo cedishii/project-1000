@@ -401,6 +401,23 @@ def sign_up_hook_allows_only_invited_emails(w: World):
     expect_error(lambda: w.rpc(w.owner, "select public.hook_before_user_created('{}')"), "42501")
 
 
+@test
+def owner_can_add_a_member_directly_from_the_sql_editor(w: World):
+    friend = w.new_user("friend")
+    eq(str(w.db.admin("select private.add_member(:e)", e=w.email_of[friend].upper())[0][0]), friend,
+       "added")
+    eq(w.rpc(friend, "select role, status from public.members"), [["member", "active"]], "member")
+    add_item(w, friend, "works")
+    expect_error(lambda: w.db.admin("select private.add_member(:e)", e=w.email_of[w.owner]))
+    expect_error(lambda: w.db.admin("select private.add_member('nobody@example.test')"))
+    # Not reachable through the API, not even for the owner.
+    expect_error(lambda: w.rpc(w.owner, "select private.add_member(:e)", e="x@example.test"), "42501")
+    # Re-running re-enables a disabled member.
+    w.rpc(w.owner, "select public.set_member_status(:u, 'disabled')", u=friend)
+    w.db.admin("select private.add_member(:e)", e=w.email_of[friend])
+    eq(w.rpc(friend, "select status from public.members"), [["active"]], "re-enabled")
+
+
 # --- isolation -------------------------------------------------------------
 
 def own_or_forbidden(fn):
