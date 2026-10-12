@@ -11,8 +11,9 @@ that means something to you. When you do them, attach memories (words,
 photos, dates, places and hashtags). Over the years the list becomes a
 record of your life.
 
-There are no accounts, cloud, ads or tracking. Everything stays on your
-phone until you export a backup yourself.
+There are no ads or tracking. Everything stays on your phone until you
+export a backup yourself, unless you choose to sign in to an optional
+Project: 1000 account to use your list on the website too.
 
 **Author:** Cedrick Miguel P. Kaneko
 
@@ -153,18 +154,27 @@ The format is documented in [docs/BACKUP_FORMAT.md](docs/BACKUP_FORMAT.md).
 
 ## Privacy
 
-No account, no cloud sync, no ads, no analytics, no tracking. The
-release app does not request internet access at all. Details:
+No ads, no analytics, no tracking. Without an account the app makes
+no network requests. With the optional account your data is in your
+account only, readable by you alone. Details:
 [docs/PRIVACY.md](docs/PRIVACY.md).
 
-## Cloud accounts (in development)
+## Accounts and the website (built, not yet released)
 
-A shared backend for an upcoming web version and optional sync is being
-prepared in `supabase/`: invite-only accounts, per-account privacy
-enforced by the database, and a verified, resumable way to copy a
-phone's archive to the cloud. **The released app does not use it and
-remains fully offline.** See [docs/CLOUD.md](docs/CLOUD.md) and
-[docs/WEB_PLAN.md](docs/WEB_PLAN.md).
+The same app also runs in a web browser, and an optional account keeps
+one list in sync between devices:
+
+- **Invite-only:** the owner approves an email, and the friend creates
+  their own account with their own password.
+- **Private per account,** enforced by the database: nobody, including
+  the owner, can see anyone else's list, memories or photos.
+- **Optional on the phone:** without signing in, nothing changes. With
+  an account, "Copy this phone's list to my account" copies everything
+  and then checks the copy, without changing the phone's archive.
+
+The backend is in `supabase/`. Details are in
+[docs/CLOUD.md](docs/CLOUD.md) and [docs/WEB_PLAN.md](docs/WEB_PLAN.md).
+Releases up to 1.1.0 are fully offline.
 
 ## Known limitations
 

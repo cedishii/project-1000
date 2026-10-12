@@ -4,15 +4,31 @@ Project: 1000 is a personal journal. Privacy is a core feature.
 
 ## What the app does not have
 
-- No account or login
-- No cloud sync or server; the developer never receives your data
 - No advertising
 - No analytics, crash reporting or telemetry
-- No social features
-- No network access at all: the Android release build does not request
-  the `INTERNET` permission, so the system would block any connection
+- No social features: nobody else can see your list
+- No network access unless you sign in to a Project: 1000 account
+  (optional, see below). Without an account the app makes no network
+  requests at all.
 
-## Where your data is
+## The optional account
+
+You can sign in to a Project: 1000 account to use your list on the
+website and on several devices. Then:
+
+- Your list, memories, hashtags, photos and profile are stored in the
+  project's database and private photo storage (Supabase, region
+  ap-south-1).
+- Only you can open them. The project's owner manages who has an
+  account but cannot see anyone's list, memories or photos, and
+  members cannot see each other's. This is enforced by the database
+  itself, not just hidden in the app.
+- Nothing is copied from your phone until you choose "Copy this phone's
+  list to my account". Your phone's own archive stays on the phone,
+  unchanged, and you can switch back to it at any time.
+- Signing out on a phone returns it to its own archive.
+
+## Where your data is (without an account)
 
 Your list, memories, hashtags, photos, profile (name, nickname, age,
 bio, profile picture) and journey history are stored only in the app's

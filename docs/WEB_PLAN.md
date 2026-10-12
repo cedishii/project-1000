@@ -1,7 +1,10 @@
-# Web version: plan for the next phase
+# Web version
 
-The backend is ready (docs/CLOUD.md). This is how to build the web app
-on it without reworking the backend or redesigning the product.
+Status (2026-10-12): **built** with Flutter web from this codebase, as
+recommended below, and tested in Chrome against the real project
+(sign-in, sign-out, adding and showing items, account isolation, phone
+and desktop widths). Not hosted yet. The order of work at the end
+records what was done and what is left.
 
 ## Recommendation: Flutter web, from this same codebase
 
@@ -97,8 +100,10 @@ content needs, not device names:
 
 ## Configuration and deployment
 
-- Build: `flutter build web --release --dart-define=SUPABASE_URL=… --dart-define=SUPABASE_ANON_KEY=…`
-  (publishable values only; see `.env.example`).
+- Build: `flutter build web --release --dart-define=SUPABASE_URL=… --dart-define=SUPABASE_ANON_KEY=… --dart-define=P1000_SITE_URL=https://<your site>`
+  (publishable values only; see `.env.example`). The output is
+  `build/web`. The same defines on `flutter build apk` enable the
+  optional account on Android.
 - Host the static `build/web` output anywhere static (Vercel, Netlify,
   Cloudflare Pages, GitHub Pages). Add its URL to Supabase Auth → URL
   configuration (Site URL and redirect URLs) and to the Storage CORS
@@ -111,13 +116,13 @@ content needs, not device names:
 
 ## Order of work
 
-1. Introduce `ArchiveBackend` and move `AppStore` onto it, with
-   `LocalArchive` only. All existing tests must still pass, with no
-   behaviour change.
-2. `CloudArchive` + `CloudArchiveApi` (Supabase), tested against
-   `supabase start`.
-3. Phone: opt-in sign-in, migration screen (`CloudMigration`), cloud
-   mode.
-4. Web: enable the web platform, wire up `CloudArchive`, add the
-   responsive layouts and the owner admin page.
-5. Invite the three friends (owner action).
+1. ✔ `ArchiveBackend` with `LocalArchive` (no behaviour change).
+2. ✔ `CloudArchive`, `CloudMedia`, `SupabaseMigrationApi`, tested live.
+3. ✔ Phone: optional sign-in, verified copy, account mode, refresh on
+   return.
+4. ✔ Web: platform, branding, centred readable layout on wide screens,
+   sign-in/sign-up/reset/change password, Owner page.
+5. ☐ Host the website and set its URL in Supabase Auth.
+6. ☐ Approve the three friends' emails (owner action).
+7. ☐ Later: list-and-detail side by side on wide screens, Life Album
+   PDF in the browser, keyboard shortcuts.

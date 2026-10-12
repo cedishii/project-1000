@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased: accounts and the website
+
+- **Optional Project: 1000 account:** sign in, create an account (for
+  approved emails), reset or change your password
+- **Website:** the same app in any browser, with the same look, kept at
+  a readable width on large screens
+- **Copy this phone's list to my account:** every journey, memory,
+  hashtag and photo, checked record by record afterwards. Nothing on
+  the phone changes, and it can be repeated without duplicates
+- **Use my account on this phone:** the same list as the website,
+  refreshed when you return to the app. Switch back to the phone's own
+  archive at any time
+- **Owner page:** approve friends' emails, withdraw approvals, disable
+  or re-enable accounts. It never shows anyone's list
+- Privacy enforced by the database: nobody else (including the owner)
+  can read your list, memories or photos
+- Android asks for internet access, used only by the optional account
+
 ## 1.1.0 — Profile, levels, journeys and the Life Album
 
 - **Profile:** name, nickname, age, started date, bio and a profile

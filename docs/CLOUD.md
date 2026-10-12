@@ -1,13 +1,12 @@
 # Cloud accounts and sync (foundation)
 
-Status: **backend foundation only.** The phone app released today is
-still fully offline and does not contain any network code. This document
-describes the shared backend that the phone and the future web app will
-both use, and what is left to connect them.
-
-The migrations were applied to the project's Supabase database on
-2026-10-12 (`supabase db push`). Anonymous access to every table,
-view and API function was checked against the live API and is refused.
+Status: **built and tested; not released yet.** The backend runs on the
+project's Supabase database. The app (same code for Android, iOS and
+the web) can sign in, keep a list in the account, and copy a phone's
+list there with verification. On the phone the account is optional,
+and without signing in nothing changes and nothing connects. A phone
+app with these features has not been released, and the website is not
+hosted yet (see "What's left").
 
 ```text
 Phone app (Flutter) ─┐                         ┌─ Postgres: journeys, items, memories,
@@ -321,14 +320,26 @@ Never use real accounts for it. Create test users with emails like
 then `private.add_member`). Delete them afterwards (Authentication →
 Users), which also deletes their rows.
 
-## What's left (next phase)
+## What's left
 
-1. ~~Create the Supabase project and apply the migrations.~~ Done
-   2026-10-12, owner account set up the same day.
-2. Run the tests against `supabase start` or a staging project.
-3. Phone: add `supabase_flutter`, a sign-in screen, an implementation of
-   `CloudArchiveApi`, the migration screen, and cloud mode for
-   `AppStore`. This also means adding the INTERNET permission to the
-   release build and updating `docs/PRIVACY.md` and the README, because
-   the "no network" promise changes. Cloud mode must stay opt-in.
-4. Web app (see `docs/WEB_PLAN.md`).
+Done on 2026-10-12: Supabase project and migrations, owner account,
+live security and end-to-end tests, phone sign-in, migration and
+account mode (tested on the Android emulator), and the web version
+(tested in Chrome).
+
+1. **Host the website** (e.g. Vercel, Netlify or Cloudflare Pages; see
+   `docs/WEB_PLAN.md`, "Configuration and deployment"), then set its
+   address in Supabase → Authentication → URL Configuration (Site URL
+   and redirect URLs) and build with `--dart-define=P1000_SITE_URL=…`
+   so confirmation and password-reset links lead there.
+2. **Release the phone app** with the account features (version bump,
+   APKs built with the `SUPABASE_*` defines, `docs/RELEASING.md`).
+3. **Approve your friends' emails** on the Owner page (or with
+   `create_invitation`) once the website is up.
+4. Optional: enable the sign-up hook, leaked-password protection and a
+   custom SMTP sender (Supabase's built-in email is rate-limited and
+   meant for testing).
+5. Later: offline editing while signed in (an outbox of the same
+   retry-safe calls), Life Album PDF on the web, list-and-detail side
+   by side on wide screens, and a checksum (not just size) check for
+   migrated photos.
