@@ -1,8 +1,8 @@
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
@@ -186,7 +186,8 @@ Future<(int, int, ShrunkImage)> shrinkImage(
   return (w, h, ShrunkImage(jpeg, tw, th));
 }
 
-/// Encodes raw RGBA pixels as a JPEG on a background isolate.
+/// Encodes raw RGBA pixels as a JPEG on a background isolate (inline on
+/// the web, which has no isolates).
 Future<Uint8List> encodeRgbaAsJpeg(
   ByteData rgba,
   int width,
@@ -197,18 +198,21 @@ Future<Uint8List> encodeRgbaAsJpeg(
     rgba.offsetInBytes,
     rgba.lengthInBytes,
   );
-  return Isolate.run(
-    () => Uint8List.fromList(
-      img.encodeJpg(
-        img.Image.fromBytes(
-          width: width,
-          height: height,
-          bytes: pixels.buffer,
-          bytesOffset: pixels.offsetInBytes,
-          numChannels: 4,
-        ),
-        quality: quality,
+  return compute(_encodeJpeg, (pixels, width, height, quality));
+}
+
+Uint8List _encodeJpeg((Uint8List, int, int, int) job) {
+  final (pixels, width, height, quality) = job;
+  return Uint8List.fromList(
+    img.encodeJpg(
+      img.Image.fromBytes(
+        width: width,
+        height: height,
+        bytes: pixels.buffer,
+        bytesOffset: pixels.offsetInBytes,
+        numChannels: 4,
       ),
+      quality: quality,
     ),
   );
 }

@@ -64,3 +64,19 @@ abstract interface class ArchiveBackend {
   Future<String?> getSetting(String key);
   Future<void> setSetting(String key, String value);
 }
+
+/// The record was changed elsewhere (another device) since it was loaded;
+/// nothing was overwritten. Reload and try again.
+class StaleDataException implements Exception {}
+
+/// The cloud account can't be used: not signed in, not (or no longer) a
+/// member of Project: 1000.
+class NotAMemberException implements Exception {}
+
+/// The cloud couldn't be reached (offline, or the server didn't answer).
+/// Nothing was changed.
+class CloudUnavailableException implements Exception {
+  CloudUnavailableException(this.cause);
+
+  final Object cause;
+}

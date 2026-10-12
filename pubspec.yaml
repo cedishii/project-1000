@@ -25,6 +25,7 @@ dependencies:
   intl: ^0.20.3              # date and number formatting
   package_info_plus: ^10.2.2 # version shown on the About screen
   pdf: ^3.13.1               # Life Album PDF export
+  supabase_flutter: ^2.18.3  # cloud accounts (opt-in): auth, database, storage
 
 dev_dependencies:
   flutter_test:

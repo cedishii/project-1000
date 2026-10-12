@@ -305,6 +305,22 @@ python supabase/tests/run_tests.py --dsn postgresql://postgres:postgres@127.0.0.
 
 Never point the tests at the production database.
 
+### Live end-to-end tests
+
+`test/cloud_live_test.dart` runs the app's real cloud code
+(`CloudArchive`, `CloudMedia`, `SupabaseMigrationApi`) against a real
+project with three throwaway member accounts. It is skipped unless the
+`P1000_*` variables listed at the top of the file are set. It covers two
+devices on one account (list, order, numbers, EXP, memories, hashtags,
+photos, profile and theme), refused stale edits, cross-account isolation,
+deletes that leave no orphaned files, and a verified, repeatable phone
+migration. It passed against the project on 2026-10-12.
+
+Never use real accounts for it. Create test users with emails like
+`p1000-e2e-a@example.test` (the dashboard's *Add user*, auto-confirmed,
+then `private.add_member`). Delete them afterwards (Authentication →
+Users), which also deletes their rows.
+
 ## What's left (next phase)
 
 1. ~~Create the Supabase project and apply the migrations.~~ Done
