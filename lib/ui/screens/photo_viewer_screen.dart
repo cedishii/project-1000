@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../data/models.dart';
@@ -81,7 +79,7 @@ class _PhotoViewerScreenState extends State<PhotoViewerScreen> {
             child: Center(
               child: Image(
                 image: ResizeImage(
-                  FileImage(File(store.location.resolve(photo.file))),
+                  store.media.image(photo.file),
                   width: maxPx,
                   height: maxPx,
                   policy: ResizeImagePolicy.fit,

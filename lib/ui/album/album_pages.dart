@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../data/models.dart';
@@ -467,7 +465,6 @@ class _AlbumPhoto extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final photo = photos[index];
     final px = (width * MediaQuery.devicePixelRatioOf(context)).round();
-    final file = File(store.location.resolve(photo.file));
     final unavailable = Container(
       color: scheme.surfaceContainer,
       alignment: Alignment.center,
@@ -494,7 +491,7 @@ class _AlbumPhoto extends StatelessWidget {
           onTap: () => openPhotoViewer(context, photos, index),
           child: Image(
             image: ResizeImage(
-              FileImage(file),
+              store.media.image(photo.file),
               width: px,
               policy: ResizeImagePolicy.fit,
             ),

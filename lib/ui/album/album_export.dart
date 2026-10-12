@@ -97,12 +97,19 @@ Future<AlbumPdfContent> albumPdfContent(
       m.id: m,
   };
 
-  PdfPhoto photoAt(String rel) {
-    final path = store.location.resolve(rel);
-    return PdfPhoto(File(path).existsSync() ? path : null);
-  }
-
   final profile = facts.profile;
+  // Each photo as a file on this device (downloaded first for a cloud
+  // archive); null where a photo isn't available.
+  final paths = <String, String?>{};
+  for (final rel in [
+    ?profile.photo,
+    for (final m in memories.values)
+      for (final ph in m.photos) ph.file,
+  ]) {
+    paths[rel] ??= await store.media.localFile(rel);
+  }
+  PdfPhoto photoAt(String rel) => PdfPhoto(paths[rel]);
+
   return AlbumPdfContent(
     journeyNumber: facts.number,
     datesLine: facts.datesLine,

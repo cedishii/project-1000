@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../data/models.dart';
@@ -61,7 +59,7 @@ class ProfileAvatar extends StatelessWidget {
               ? fallback
               : Image(
                   image: ResizeImage(
-                    FileImage(File(store.location.resolve(photo))),
+                    store.media.image(photo),
                     width: px,
                     height: px,
                   ),

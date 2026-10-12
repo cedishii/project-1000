@@ -105,9 +105,9 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
     var failed = 0;
     for (final file in picked) {
       try {
-        final ref = await store.photos.addPending(file.path);
+        final ref = await store.media.addPending(file);
         if (!mounted) {
-          await store.photos.discard([ref]);
+          await store.media.discard([ref]);
           return;
         }
         setState(() {
@@ -171,7 +171,7 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
       _changed = true;
     });
     if (PhotoStorage.isPending(photo)) {
-      await StoreScope.read(context).photos.discard([photo]);
+      await StoreScope.read(context).media.discard([photo]);
     }
   }
 
@@ -227,7 +227,7 @@ class _MemoryEditorScreenState extends State<MemoryEditorScreen> {
   }
 
   Future<void> _discardPending() =>
-      StoreScope.read(context).photos.discard(_photos);
+      StoreScope.read(context).media.discard(_photos);
 
   @override
   Widget build(BuildContext context) {
