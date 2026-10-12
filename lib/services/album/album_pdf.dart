@@ -26,12 +26,19 @@ const int pdfPhotoQuality = 78;
 /// Photo bytes per PDF file before the album is split into parts.
 const int pdfVolumeImageBudget = 160 * 1024 * 1024;
 
-/// A photo in the album. [path] is null when the photo is unavailable
-/// (missing or unreadable); the PDF then says so instead of hiding it.
+/// A photo in the album: a file ([path], on a phone) or its contents
+/// ([data], in a browser). With neither, the photo is unavailable
+/// (missing or unreadable) and the PDF says so instead of hiding it.
 class PdfPhoto {
-  const PdfPhoto(this.path, {this.aspect = 1.5, this.bytes = 0});
+  const PdfPhoto(this.path, {this.aspect = 1.5, this.bytes = 0, this.data});
 
   final String? path;
+  final Uint8List? data;
+
+  bool get isAvailable => path != null || data != null;
+
+  /// The photo's bytes (read from [path] if needed).
+  Uint8List read() => data ?? File(path!).readAsBytesSync();
 
   /// Width / height.
   final double aspect;
@@ -263,17 +270,7 @@ Future<List<File>> exportAlbumPdf({
     }
 
     // 2. Split into parts by photo size, keeping the list order.
-    final volumes = <List<PdfEntry>>[[]];
-    var bytes = 0;
-    for (final e in entries) {
-      if (volumes.last.isNotEmpty &&
-          bytes + e.imageBytes > pdfVolumeImageBudget) {
-        volumes.add([]);
-        bytes = 0;
-      }
-      volumes.last.add(e);
-      bytes += e.imageBytes;
-    }
+    final volumes = _volumes(entries, pdfVolumeImageBudget);
 
     // 3. Lay out and write the PDFs in the background.
     final job = _PdfJob(
@@ -292,6 +289,117 @@ Future<List<File>> exportAlbumPdf({
       await workDir.delete(recursive: true);
     } catch (_) {}
   }
+}
+
+/// Photo bytes per PDF when building in memory (in a browser), which
+/// has far less room than a phone's storage.
+const int pdfMemoryVolumeImageBudget = 60 * 1024 * 1024;
+
+/// Shrinks one photo's bytes for the PDF. Returns null if unreadable.
+typedef PdfBytesPreparer = Future<ShrunkImage?> Function(Uint8List data);
+
+Future<ShrunkImage?> preparePdfPhotoBytes(Uint8List data) async {
+  final (_, _, shrunk) = await shrinkImage(
+    data,
+    pdfPhotoMaxSide,
+    quality: pdfPhotoQuality,
+  );
+  return shrunk;
+}
+
+/// Builds the album as one or more PDFs in memory (for the web, where
+/// there are no files or background isolates). [content]'s photos hold
+/// their bytes in [PdfPhoto.data] (null = missing). Returns the file
+/// names and contents, in order.
+Future<List<(String, Uint8List)>> buildAlbumPdfInMemory({
+  required AlbumPdfContent content,
+  required AlbumPdfAssets assets,
+  PdfBytesPreparer prepare = preparePdfPhotoBytes,
+  void Function(double progress)? onProgress,
+}) async {
+  final total = [
+    for (final e in content.entries)
+      for (final m in e.memories) ...m.photos,
+  ].length;
+  var done = 0;
+  Future<PdfPhoto> shrink(PdfPhoto ph) async {
+    final data = ph.data;
+    if (data == null) return const PdfPhoto(null);
+    try {
+      final out = await prepare(data);
+      if (out == null) return const PdfPhoto(null);
+      return PdfPhoto(
+        null,
+        data: out.bytes,
+        aspect: out.width / out.height,
+        bytes: out.bytes.length,
+      );
+    } catch (e) {
+      logError('Album photo unavailable', e);
+      return const PdfPhoto(null);
+    }
+  }
+
+  final profile = content.profilePhoto == null
+      ? null
+      : await shrink(content.profilePhoto!);
+  final entries = <PdfEntry>[];
+  for (final e in content.entries) {
+    entries.add(
+      PdfEntry(
+        number: e.number,
+        title: e.title,
+        description: e.description,
+        completed: e.completed,
+        memories: [
+          for (final m in e.memories)
+            PdfMemory(
+              title: m.title,
+              body: m.body,
+              date: m.date,
+              location: m.location,
+              hashtags: m.hashtags,
+              photos: [
+                for (final ph in m.photos)
+                  await shrink(ph).whenComplete(
+                    () => onProgress?.call(
+                      ++done / (total == 0 ? 1 : total) * 0.6,
+                    ),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+  final job = _PdfJob(
+    content: content.withPhotos(profile, const []),
+    volumes: _volumes(entries, pdfMemoryVolumeImageBudget),
+    assets: assets,
+    outDir: '',
+  );
+  final out = <(String, Uint8List)>[];
+  await _buildPdfs(
+    job,
+    (v) => onProgress?.call(0.6 + v * 0.4),
+    (name, bytes) async => out.add((name, bytes)),
+  );
+  return out;
+}
+
+/// Splits the entries into PDF parts by photo size, keeping list order.
+List<List<PdfEntry>> _volumes(List<PdfEntry> entries, int budget) {
+  final volumes = <List<PdfEntry>>[[]];
+  var bytes = 0;
+  for (final e in entries) {
+    if (volumes.last.isNotEmpty && bytes + e.imageBytes > budget) {
+      volumes.add([]);
+      bytes = 0;
+    }
+    volumes.last.add(e);
+    bytes += e.imageBytes;
+  }
+  return volumes;
 }
 
 /// Built here, not inline, so the closure sent to the background isolate
@@ -333,6 +441,24 @@ Future<List<String>> _writePdfs(
   _PdfJob job,
   void Function(double) report,
 ) async {
+  final out = <String>[];
+  await _buildPdfs(job, report, (name, bytes) async {
+    final path = p.join(job.outDir, name);
+    final partial = File('$path.partial');
+    partial.writeAsBytesSync(bytes, flush: true);
+    partial.renameSync(path);
+    out.add(path);
+  });
+  return out;
+}
+
+/// Lays out every part of the album and hands each finished PDF to
+/// [emit] (file name, contents) before starting the next.
+Future<void> _buildPdfs(
+  _PdfJob job,
+  void Function(double) report,
+  Future<void> Function(String name, Uint8List bytes) emit,
+) async {
   final a = job.assets;
   final heading = pw.Font.ttf(ByteData.sublistView(a.heading));
   final regular = pw.Font.ttf(ByteData.sublistView(a.regular));
@@ -360,14 +486,13 @@ Future<List<String>> _writePdfs(
         pw.FullPage(ignoreMargins: true, child: pw.Container(color: _paper)),
   );
   pw.ImageProvider? profile;
-  if (c.profilePhoto?.path case final path?) {
-    profile = pw.MemoryImage(File(path).readAsBytesSync());
+  if (c.profilePhoto case final photo? when photo.isAvailable) {
+    profile = pw.MemoryImage(photo.read());
   }
 
   final parts = job.volumes.length;
   final totalEntries = job.volumes.fold(0, (n, v) => n + v.length);
   var built = 0;
-  final out = <String>[];
   for (var v = 0; v < parts; v++) {
     final doc = pw.Document(
       title: 'My 1000 Things — Journey ${c.journeyNumber}',
@@ -450,14 +575,9 @@ Future<List<String>> _writePdfs(
       );
     }
 
-    final path = p.join(job.outDir, albumPdfName(c.journeyNumber, v, parts));
-    final partial = File('$path.partial');
-    partial.writeAsBytesSync(await doc.save(), flush: true);
-    partial.renameSync(path);
-    out.add(path);
+    await emit(albumPdfName(c.journeyNumber, v, parts), await doc.save());
     report((built + v + 1) / (totalEntries + parts));
   }
-  return out;
 }
 
 class _Styles {
@@ -671,8 +791,7 @@ List<pw.Widget> _photos(List<PdfPhoto> photos, _Styles s, double width) {
 }
 
 pw.Widget _photo(PdfPhoto ph, double width, double height, _Styles s) {
-  final path = ph.path;
-  if (path == null) {
+  if (!ph.isAvailable) {
     return pw.Container(
       width: width,
       height: height,
@@ -687,9 +806,6 @@ pw.Widget _photo(PdfPhoto ph, double width, double height, _Styles s) {
   return pw.SizedBox(
     width: width,
     height: height,
-    child: pw.Image(
-      pw.MemoryImage(File(path).readAsBytesSync()),
-      fit: pw.BoxFit.contain,
-    ),
+    child: pw.Image(pw.MemoryImage(ph.read()), fit: pw.BoxFit.contain),
   );
 }

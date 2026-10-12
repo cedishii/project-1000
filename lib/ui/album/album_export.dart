@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -10,6 +11,7 @@ import '../../data/models.dart';
 import '../../services/album/album_pdf.dart';
 import '../../state/app_store.dart';
 import '../backup_flows.dart';
+import '../download/download.dart';
 import '../feedback.dart';
 import '../formatting.dart';
 import '../journey_facts.dart';
@@ -18,6 +20,7 @@ import '../store_scope.dart';
 /// Builds the PDF of a journey's Life Album, then lets the user save or
 /// share it.
 Future<void> exportAlbumPdfFlow(BuildContext context, String journeyId) async {
+  if (kIsWeb) return _exportInBrowser(context, journeyId);
   final store = StoreScope.read(context);
   final progress = ValueNotifier<double?>(null);
   final close = showProgressDialog(
@@ -62,6 +65,51 @@ Future<void> exportAlbumPdfFlow(BuildContext context, String journeyId) async {
   );
 }
 
+/// In a browser: the PDF is built in memory from the account's photos
+/// and handed to the browser as downloads.
+Future<void> _exportInBrowser(BuildContext context, String journeyId) async {
+  final store = StoreScope.read(context);
+  final progress = ValueNotifier<double?>(null);
+  final close = showProgressDialog(
+    context,
+    'Making your Life Album PDF…',
+    progress,
+  );
+  List<(String, Uint8List)> pdfs;
+  try {
+    pdfs = await buildAlbumPdfInMemory(
+      content: await albumPdfContent(store, journeyId, inMemory: true),
+      assets: await loadAlbumPdfAssets(),
+      onProgress: (v) => progress.value = v,
+    );
+  } catch (e, s) {
+    close();
+    logError('Album PDF failed', e, s);
+    if (context.mounted) {
+      await showAlert(
+        context,
+        'PDF not created',
+        "The PDF couldn't be created. Nothing was changed; please try "
+            'again.',
+      );
+    }
+    return;
+  }
+  close();
+  for (final (name, bytes) in pdfs) {
+    downloadBytes(name, bytes, 'application/pdf');
+  }
+  if (context.mounted) {
+    showMessage(
+      context,
+      pdfs.length == 1
+          ? 'Your Life Album PDF is downloading (${fileSize(pdfs.single.$2.length)}).'
+          : 'Your Life Album is large, so it is downloading as '
+                '${pdfs.length} PDFs. Keep them together.',
+    );
+  }
+}
+
 Future<AlbumPdfAssets> loadAlbumPdfAssets() async {
   Future<Uint8List> load(String name) async =>
       (await rootBundle.load(name)).buffer.asUint8List();
@@ -80,10 +128,14 @@ Future<AlbumPdfAssets> loadAlbumPdfAssets() async {
 
 /// Gathers the album's text and photo paths for the PDF, in the journey's
 /// list order. Only completed things appear, with all their memories.
+///
+/// With [inMemory] (browsers) photos carry their bytes instead of a file
+/// on this device.
 Future<AlbumPdfContent> albumPdfContent(
   AppStore store,
-  String journeyId,
-) async {
+  String journeyId, {
+  bool inMemory = false,
+}) async {
   final summary = (await store.journeySummaries()).firstWhere(
     (s) => s.journey.id == journeyId,
   );
@@ -101,14 +153,20 @@ Future<AlbumPdfContent> albumPdfContent(
   // Each photo as a file on this device (downloaded first for a cloud
   // archive); null where a photo isn't available.
   final paths = <String, String?>{};
+  final data = <String, Uint8List?>{};
   for (final rel in [
     ?profile.photo,
     for (final m in memories.values)
       for (final ph in m.photos) ph.file,
   ]) {
-    paths[rel] ??= await store.media.localFile(rel);
+    if (inMemory) {
+      if (!data.containsKey(rel)) data[rel] = await store.media.read(rel);
+    } else {
+      paths[rel] ??= await store.media.localFile(rel);
+    }
   }
-  PdfPhoto photoAt(String rel) => PdfPhoto(paths[rel]);
+  PdfPhoto photoAt(String rel) =>
+      inMemory ? PdfPhoto(null, data: data[rel]) : PdfPhoto(paths[rel]);
 
   return AlbumPdfContent(
     journeyNumber: facts.number,

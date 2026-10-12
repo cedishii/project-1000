@@ -67,6 +67,18 @@ class CloudMedia implements MediaStore {
   }
 
   @override
+  Future<Uint8List?> read(String path) async {
+    final pending = _pending[path];
+    if (pending != null) return pending;
+    try {
+      return await _files.download(keyOf(path));
+    } catch (e) {
+      logError('Could not download $path', e);
+      return null;
+    }
+  }
+
+  @override
   Future<PhotoRef> addPending(XFile picked) async {
     final bytes = await picked.readAsBytes();
     final id = ArchiveRepository.newId();

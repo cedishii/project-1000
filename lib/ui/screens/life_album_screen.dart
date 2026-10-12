@@ -65,14 +65,13 @@ class _LifeAlbumScreenState extends State<LifeAlbumScreen> {
           appBar: AppBar(
             title: Text(title),
             actions: [
-              if (!kIsWeb)
-                IconButton(
-                  tooltip: 'Export as PDF',
-                  icon: const Icon(Icons.picture_as_pdf_outlined),
-                  onPressed: data == null
-                      ? null
-                      : () => exportAlbumPdfFlow(context, widget.journeyId),
-                ),
+              IconButton(
+                tooltip: kIsWeb ? 'Download as PDF' : 'Export as PDF',
+                icon: const Icon(Icons.picture_as_pdf_outlined),
+                onPressed: data == null
+                    ? null
+                    : () => exportAlbumPdfFlow(context, widget.journeyId),
+              ),
             ],
           ),
           body: snap.hasError

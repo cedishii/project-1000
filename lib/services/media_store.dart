@@ -22,6 +22,9 @@ abstract interface class MediaStore {
   /// needed), or null if it isn't available. Used by the PDF export.
   Future<String?> localFile(String path);
 
+  /// The contents of [path], or null if it isn't available.
+  Future<Uint8List?> read(String path);
+
   /// Prepares a picked photo for a memory being edited: a copy and a
   /// thumbnail, kept as "pending" until the memory is saved.
   Future<PhotoRef> addPending(XFile picked);
@@ -43,6 +46,12 @@ class LocalMedia implements MediaStore {
   Future<String?> localFile(String path) async {
     final resolved = location.resolve(path);
     return await File(resolved).exists() ? resolved : null;
+  }
+
+  @override
+  Future<Uint8List?> read(String path) async {
+    final f = File(location.resolve(path));
+    return await f.exists() ? f.readAsBytes() : null;
   }
 
   @override
