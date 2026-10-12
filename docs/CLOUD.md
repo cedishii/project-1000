@@ -165,8 +165,25 @@ I also checked the suite against deliberately broken copies of the
 schema (an items read policy of `true`, and an API function without its
 ownership check). The isolation tests failed on both, as they should.
 
-**Not yet tested:** a real Supabase project (Auth, PostgREST and Storage
-together), and the sign-up hook as configured in the dashboard. The
+**On the live project (2026-10-12):** `supabase/tests/live_smoke.sql`
+runs in one transaction that is rolled back, so it leaves nothing behind.
+It uses throwaway accounts, the real owner, Supabase's own roles, RLS and
+storage policies. Run it with
+`supabase db query --linked -f supabase/tests/live_smoke.sql`. Result:
+**SMOKE OK** (invitations, single use, cross-account isolation for a
+member, the owner and a stranger, storage folders, role escalation,
+anonymous access, disabling, and EXP awarded once). A deliberately wrong
+variant fails, as it should. Supabase's advisor (`supabase db advisors
+--linked`) reports no errors. Its warning that signed-in users can
+execute the SECURITY DEFINER functions is intentional (they are the API
+and check membership themselves). Also consider enabling leaked-password
+protection (Authentication → Policies, if your plan offers it).
+
+Real Supabase blocks deleting `storage.objects` rows with SQL
+(`protect_objects_delete`), so clients delete files through the Storage
+API, as designed.
+
+**Not yet tested:** the sign-up hook as configured in the dashboard. The
 stub reproduces `auth.uid()`, roles, default grants and `storage.objects`
 policies, but it is not Supabase itself. Run the suite against
 `supabase start` (below) before relying on it.
