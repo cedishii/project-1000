@@ -266,8 +266,8 @@ ImportPreview _unpackAndValidate(
     } catch (e) {
       throw ImportException(ImportProblem.corrupted, 'data json: $e');
     }
-    data = _migrateData(data, dfv);
-    _validate(data);
+    data = upgradeBackupData(data, dfv);
+    validateBackupData(data);
 
     // --- photos: extract each referenced file and verify its checksum
     final fileInfo = (manifest['files'] as Map? ?? const {});
@@ -388,7 +388,10 @@ bool _extractVerified(
 }
 
 /// Upgrades older data.json versions to the current one.
-Map<String, Object?> _migrateData(Map<String, Object?> data, int fromVersion) {
+Map<String, Object?> upgradeBackupData(
+  Map<String, Object?> data,
+  int fromVersion,
+) {
   if (fromVersion < 2) {
     // v1 had one list and no profile: it becomes Journey 1, in progress.
     data = {
@@ -415,7 +418,7 @@ Map<String, Object?> _migrateData(Map<String, Object?> data, int fromVersion) {
 
 /// Checks data.json is internally consistent. Any problem rejects the
 /// whole backup: a half-understood archive is never imported.
-void _validate(Map<String, Object?> data) {
+void validateBackupData(Map<String, Object?> data) {
   Never bad(String why) =>
       throw ImportException(ImportProblem.invalidData, why);
   bool isTimestamp(Object? v) => v is String && DateTime.tryParse(v) != null;

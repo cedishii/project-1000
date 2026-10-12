@@ -11,6 +11,7 @@ import '../state/store_loader.dart';
 import 'layout.dart';
 import 'screens/account_screen.dart' show showChangePassword;
 import 'screens/home_screen.dart';
+import 'screens/main_tabs.dart';
 import 'screens/sign_in_screen.dart';
 import 'store_scope.dart';
 import 'theme.dart';
@@ -153,7 +154,11 @@ class _Project1000AppState extends State<Project1000App>
     }
     return ListenableBuilder(
       listenable: store,
-      builder: (context, _) => app(store.themeMode, const HomeScreen()),
+      builder: (context, _) => app(
+        store.themeMode,
+        // Friends needs an account; the phone's own archive is unchanged.
+        store.isLocal ? const HomeScreen() : const MainTabs(),
+      ),
     );
   }
 }

@@ -14,6 +14,7 @@ import '../data/progression.dart';
 import '../services/backup/export_service.dart' as export_service;
 import '../services/backup/export_service.dart' show ExportResult;
 import '../services/backup/import_service.dart';
+import '../services/cloud/live_updates.dart';
 import '../services/cloud/synced_archive.dart';
 import '../services/media_store.dart';
 import '../services/photo_storage.dart';
@@ -53,9 +54,16 @@ class AppStore extends ChangeNotifier {
     if (backend case final SyncedArchive synced) {
       await synced.sync();
     } else if (!isLocal) {
+      // Memories and journeys shown on open screens may have changed too.
+      memoryRevision++;
+      journeyRevision++;
       await load();
     }
   }
+
+  /// Live change signals from the account (see [LiveUpdates]); null for
+  /// the phone's own archive.
+  LiveUpdates? live;
 
   AppStore._local(LocalArchive local)
     : backend = local,
@@ -412,6 +420,7 @@ class AppStore extends ChangeNotifier {
       export_service.archiveSnapshot(_localArchive.db);
 
   Future<void> close() async {
+    await live?.stop();
     await _local?.close();
     if (backend case final SyncedArchive synced) {
       synced.dataVersion.removeListener(_onRemoteChange);

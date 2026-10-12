@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # Version shown in the app: <version name>+<build number>.
 # Increase the build number for every release (Android requires it).
-version: 1.3.0+4
+version: 1.4.0+5
 
 environment:
   sdk: ^3.13.5

@@ -6,7 +6,8 @@ Project: 1000 is a personal journal. Privacy is a core feature.
 
 - No advertising
 - No analytics, crash reporting or telemetry
-- No social features: nobody else can see your list
+- No public profiles or feeds. With an account you can use Friends
+  (below); without one, nobody else can see anything
 - No network access unless you sign in to a Project: 1000 account
   (optional, see below). Without an account the app makes no network
   requests at all.
@@ -23,10 +24,24 @@ website and on several devices. Then:
   account but cannot see anyone's list, memories or photos, and
   members cannot see each other's. This is enforced by the database
   itself, not just hidden in the app.
-- Nothing is copied from your phone until you choose "Copy this phone's
-  list to my account". Your phone's own archive stays on the phone,
+- Nothing is copied from your phone until you choose "Connect this
+  phone to my account" and confirm what it shows. A backup of the
+  phone's list is saved on the phone first. Your phone's own archive stays on the phone,
   unchanged, and you can switch back to it at any time.
 - Signing out on a phone returns it to its own archive.
+
+## Friends (optional, with an account)
+
+- Nobody can find you until you choose a username.
+- Everything else is off until you turn it on in Privacy and sharing:
+  your photo, bio, start date, progress, level, and your list
+  ("Friends only", read-only).
+- Memories, their photos, your real name, age and journey history are
+  never shared.
+- Removing a friend or making your list private takes effect
+  immediately.
+- These rules are enforced by the database. Details:
+  [FRIENDS.md](FRIENDS.md).
 
 ## Where your data is (without an account)
 

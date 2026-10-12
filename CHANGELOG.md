@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.4.0 — Friends, one list everywhere, import/export on the web
+
+- **Friends:** a new tab when signed in. Choose a username, find people
+  by username or name, send, accept, decline or cancel requests, and
+  remove friends. A badge shows waiting requests
+- **You decide what friends see:** your list stays private unless you
+  choose "Friends only" (read-only); photo, bio, start date, progress
+  and level are each off until you turn them on. Memories and their
+  photos are never shared. Changes take effect immediately
+- **Connect this phone to my account:** after signing in, the app
+  compares the phone and the account and shows what will happen. An
+  empty account gets an exact, checked copy; an account with its own
+  list gets a safe merge with a preview: nothing is removed or
+  overwritten, no duplicates, EXP counted once. A backup of the phone
+  is saved first, and the phone's own list stays on the phone
+- **Export and import on the website** (and on a signed-in phone): the
+  same backup file as the phone app, so backups move both ways. Imports
+  are checked, previewed and merged; doing it twice adds nothing
+- **Live updates:** a change on the website shows up on the phone within
+  seconds and the other way round; changes made offline are sent as
+  soon as the phone is back online
+
 ## 1.3.0 — Offline, side by side, and the album PDF on the web
 
 - **Works offline when signed in on a phone:** your account's list is

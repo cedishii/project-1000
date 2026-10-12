@@ -956,6 +956,575 @@ def pull_changes_returns_changes_and_deletions_since_a_revision(w: World):
     assert rev < 999999, "revision assigned by the server"
 
 
+# --- merging ---------------------------------------------------------------
+
+def merge(w, u, data, apply=True, titles=True):
+    return w.rpc(u, "select public.merge_archive(cast(:d as jsonb), :a, :t)",
+                 d=json.dumps(data), a=apply, t=titles)[0][0]
+
+
+def export(w, u):
+    return w.rpc(u, "select public.export_archive()")[0][0]
+
+
+def active_items(data):
+    return [i for j in data["journeys"] if j["status"] == "active" for i in j["items"]]
+
+
+@test
+def merge_into_an_empty_account_keeps_everything_as_it_was(w: World):
+    u = w.new_member("m")
+    w.rpc(u, "select public.ensure_active_journey()")  # the empty Journey 1 a new member has
+    data = fixture()
+    preview = merge(w, u, data, apply=False)
+    eq(preview["applied"], False, "dry run")
+    eq(count(w, u, "items"), 0, "dry run stored nothing")
+    eq(w.rpc(u, "select count(*) from public.journeys")[0][0], 1, "empty journey still there")
+    r = merge(w, u, data)
+    eq(r["changes"], preview["changes"], "preview said exactly what happened")
+    eq(r["after"], preview["after"], "same totals")
+    eq((r["changes"]["replacedEmptyJourney"], r["changes"]["journeysAdded"],
+        r["changes"]["itemsAdded"], r["changes"]["memoriesAdded"], r["changes"]["photosAdded"],
+        r["changes"]["profile"]), (True, 2, 3, 2, 2, "added"), "everything added")
+    out = export(w, u)
+    # Same ids, numbers, dates, texts, hashtags, photos and profile as the file.
+    def strip(d):
+        d = normalise(d)
+        for j in d["journeys"]:
+            for i in j["items"]:
+                i.pop("position")
+        return d
+    eq(strip(out), strip(data), "account equals the file (positions renumbered compactly)")
+    eq([i["title"] for i in active_items(out)], [i["title"] for i in active_items(data)], "order kept")
+
+
+@test
+def merging_twice_adds_nothing_and_never_doubles_exp(w: World):
+    u = w.new_member("m")
+    data = fixture()
+    merge(w, u, data)
+    first = export(w, u)
+    exp = w.rpc(u, "select exp from public.journey_progress where status = 'active'")[0][0]
+    again = merge(w, u, data)
+    eq(again["nothingToAdd"], True, "nothing left to add")
+    eq(again["before"], again["after"], "totals unchanged")
+    eq(export(w, u), first, "account unchanged")
+    eq(w.rpc(u, "select exp from public.journey_progress where status = 'active'")[0][0], exp,
+       "EXP unchanged")
+    # Also after a plain import of the same file.
+    expect_ok = import_archive(w, u, data)
+    eq(expect_ok["status"], "resumed", "import sees the same journeys")
+    eq(export(w, u), first, "still unchanged")
+
+
+@test
+def merge_adds_to_an_account_with_its_own_list_without_changing_it(w: World):
+    u = w.new_member("m")
+    own = add_item(w, u, "Learn to sail")        # same title as a file thing
+    other = add_item(w, u, "Bake bread")
+    w.rpc(u, "insert into public.profiles (user_id, name) values (auth.uid(), 'Web Me')")
+    w.rpc(u, "insert into public.settings (user_id, key, value) values (auth.uid(), 'theme_mode', 'light')")
+    before = export(w, u)
+    data = fixture()
+    data["journeys"] = [j for j in data["journeys"] if j["status"] == "active"]  # no history
+    data["journeys"][0]["number"] = 1
+    for i in data["journeys"][0]["items"]:
+        if i["title"] == "Learn to sail":
+            i["isCompleted"], i["completedOn"] = True, "2026-09-09"
+            i["description"] = "From the phone"
+            i["memories"] = [{"id": str(uuid.uuid4()), "position": 0, "title": "On the lake",
+                              "text": "phone memory", "date": "2026-09-09", "location": "",
+                              "hashtags": ["sailing"], "createdAt": "2026-09-09T10:00:00Z",
+                              "updatedAt": "2026-09-09T10:00:00Z", "photos": []}]
+
+    preview = merge(w, u, data, apply=False)
+    c = preview["changes"]
+    eq((c["itemsAdded"], c["matchedByTitle"], c["completionsAdded"], c["textKept"],
+        c["memoriesAdded"], c["profile"], c["settingsAdded"]),
+       (1, 1, 1, 1, 2, "kept", 0), "preview")
+    eq(export(w, u), before, "preview changed nothing")
+    eq((preview["before"]["completed"], preview["after"]["completed"]), (0, 2), "EXP preview")
+
+    merge(w, u, data)
+    after = export(w, u)
+    items = {i["title"]: i for i in active_items(after)}
+    eq(sorted(items), ["Bake bread", "Learn to sail", "Run a marathon"], "no duplicate by title")
+    sail = items["Learn to sail"]
+    eq(sail["id"], own["id"], "the account's own record is kept")
+    eq((sail["description"], sail["isCompleted"], sail["completedOn"]), ("", True, "2026-09-09"),
+       "text kept, completion added")
+    eq([m["title"] for m in sail["memories"]], ["On the lake"], "memory attached")
+    eq([i["title"] for i in active_items(after)], ["Learn to sail", "Bake bread", "Run a marathon"],
+       "account's order first, new things after")
+    eq(items["Run a marathon"]["number"], 3, "number 1 was taken: lowest free number")
+    eq(items["Bake bread"]["number"], other["number"], "own numbers untouched")
+    eq(after["profile"]["name"], "Web Me", "profile kept")
+    eq(after["settings"], {"theme_mode": "light"}, "setting kept")
+    eq(merge(w, u, data)["nothingToAdd"], True, "second merge adds nothing")
+    eq(w.rpc(u, "select completed_count, exp from public.journey_progress where status = 'active'"),
+       [[2, 2000]], "EXP counted once per completed thing")
+
+    # Without title matching the same-titled thing is added separately.
+    u2 = w.new_member("m2")
+    add_item(w, u2, "Learn to sail")
+    r = merge(w, u2, with_fresh_ids(data), titles=False)
+    eq((r["changes"]["itemsAdded"], r["changes"]["matchedByTitle"]), (2, 0), "titles not matched")
+
+
+@test
+def merge_brings_finished_journeys_and_refuses_two_histories(w: World):
+    u = w.new_member("m")
+    add_item(w, u, "Web thing")
+    data = fixture()   # Journey 1 finished, Journey 2 current
+    r = merge(w, u, data)
+    eq(r["changes"]["journeysAdded"], 1, "finished journey added")
+    eq(w.rpc(u, "select number, status from public.journeys order by number"),
+       [[1, "archived"], [2, "active"]], "current journey renumbered after the history")
+    eq(w.rpc(u, "select count(*) from public.items i join public.journeys j on j.id = i.journey_id "
+                "where j.status = 'archived'")[0][0], 1, "history's things kept")
+    eq(merge(w, u, data)["nothingToAdd"], True, "repeatable")
+    # A different history can't be combined.
+    expect_error(lambda: merge(w, u, with_fresh_ids(data)), "PT409", "history_conflict")
+    expect_error(lambda: merge(w, u, with_fresh_ids(data), apply=False), "PT409", "history_conflict")
+
+
+@test
+def merge_rejects_bad_files_and_other_accounts_ids(w: World):
+    a, b = w.new_member("a"), w.new_member("b")
+    expect_error(lambda: merge(w, a, {"dataFormatVersion": 3, "journeys": []}), "PT422",
+                 "unsupported_format")
+    expect_error(lambda: merge(w, a, {"dataFormatVersion": 2, "journeys": []}), "PT422", "invalid_data")
+    bad = fixture()
+    active_items(bad)[0]["title"] = "   "
+    expect_error(lambda: merge(w, a, bad), "PT422", "title_required")
+    eq(count(w, a, "items"), 0, "nothing stored from a bad file")
+    merge(w, a, fixture())
+    expect_error(lambda: merge(w, b, fixture()), "PT409", "id_conflict")
+    eq(count(w, b, "items"), 0, "nothing taken from another account")
+    stranger = w.new_user("s")
+    expect_error(lambda: merge(w, stranger, fixture()), "PT403")
+    expect_error(lambda: w.rpc(None, "select public.merge_archive('{}'::jsonb)"), "42501")
+    expect_error(lambda: w.rpc(a, "select private.merge_into(auth.uid(), '{}'::jsonb, true)"), "42501")
+
+
+@test
+def merge_respects_the_1000_limit(w: World):
+    u = w.new_member("m")
+    add_item(w, u, "first")
+    data = fixture()
+    data["journeys"] = [j for j in data["journeys"] if j["status"] == "active"]
+    data["journeys"][0]["number"] = 1
+    data["journeys"][0]["items"] = [
+        {"id": str(uuid.uuid4()), "number": n, "position": n, "title": f"t{n}", "description": "",
+         "isCompleted": False, "completedOn": None, "createdAt": "2026-01-01T00:00:00Z",
+         "updatedAt": "2026-01-01T00:00:00Z", "memories": []} for n in range(1, 1001)]
+    expect_error(lambda: merge(w, u, data, apply=False), "PT409", "list_full")
+    eq(count(w, u, "items"), 1, "nothing added")
+
+
+@test
+def every_archive_change_bumps_the_accounts_sync_head_only(w: World):
+    a, b = w.new_member("a"), w.new_member("b")
+    item = add_item(w, a, "x")
+    head = lambda u: w.rpc(u, "select revision from public.sync_heads")
+    r1 = head(a)[0][0]
+    eq(r1, w.rpc(a, "select public.pull_changes(0)")[0][0]["revision"], "head = latest revision")
+    w.rpc(a, "select public.delete_item(:i)", i=item["id"])
+    assert head(a)[0][0] > r1, "a delete bumps it too"
+    eq(head(b), [], "nobody sees another account's head")
+    expect_error(lambda: w.rpc(a, "update public.sync_heads set revision = 0"), "42501")
+    expect_error(lambda: w.rpc(None, "select * from public.sync_heads"), "42501")
+    merge(w, b, fixture(), apply=False)
+    eq(head(b), [], "a dry run leaves no trace")
+
+
+# --- friends ---------------------------------------------------------------
+
+def social(w: World, uid: str, username: str, name: str | None = None, **share) -> dict:
+    """Chooses a username (and sharing choices) for uid."""
+    return w.rpc(uid, "select to_jsonb(public.save_social_profile(:u, :n, :ph, :b, :st, :sx, :lv, :lst))",
+                 u=username, n=name or username.title(),
+                 ph=share.get("photo", False), b=share.get("bio", False),
+                 st=share.get("started", False), sx=share.get("stats", False),
+                 lv=share.get("level", False), lst=share.get("list", "private"))[0][0]
+
+
+def search(w, uid, q):
+    return w.rpc(uid, "select public.search_people(:q)", q=q)[0][0]
+
+
+def send(w, uid, other):
+    return w.rpc(uid, "select public.send_friend_request(:o)", o=other)[0][0]
+
+
+def requests(w, uid):
+    return w.rpc(uid, "select public.list_friend_requests()")[0][0]
+
+
+def respond(w, uid, request_id, accept=True):
+    return w.rpc(uid, "select public.respond_friend_request(:r, :a)", r=request_id, a=accept)[0][0]
+
+
+def friends_of(w, uid):
+    return [f["username"] for f in w.rpc(uid, "select public.list_friends()")[0][0]]
+
+
+def befriend(w, a, b):
+    rid = send(w, a, b)["requestId"]
+    eq(respond(w, b, rid)["status"], "accepted", "accepted")
+    return rid
+
+
+def profile_of(w, viewer, other):
+    return w.rpc(viewer, "select public.friend_profile(:o)", o=other)[0][0]
+
+
+def list_of(w, viewer, other):
+    return w.rpc(viewer, "select public.friend_list(:o)", o=other)[0][0]
+
+
+@test
+def friend_request_accepted_makes_both_friends(w: World):
+    a, b = w.new_member("a"), w.new_member("b")
+    social(w, a, "alice", "Alice A")
+    social(w, b, "bob", "Bob B")
+    found = search(w, a, "bo")
+    eq([(p["username"], p["displayName"], p["relation"]) for p in found],
+       [("bob", "Bob B", "none")], "A finds B")
+    sent = send(w, a, b)
+    eq(sent["status"], "pending", "sent")
+    eq(search(w, a, "bob")[0]["relation"], "sent", "shown as sent to A")
+    eq(search(w, b, "alice")[0]["relation"], "received", "shown as received to B")
+    inbox = requests(w, b)
+    eq([(r["username"], r["requestId"]) for r in inbox["received"]],
+       [("alice", sent["requestId"])], "B's incoming request")
+    eq(inbox["sent"], [], "B sent nothing")
+    eq([r["username"] for r in requests(w, a)["sent"]], ["bob"], "A's sent list")
+    eq(respond(w, b, sent["requestId"])["status"], "accepted", "B accepts")
+    eq(friends_of(w, a), ["bob"], "A's friends")
+    eq(friends_of(w, b), ["alice"], "B's friends")
+    eq(requests(w, a), {"received": [], "sent": []}, "nothing waiting for A")
+    eq(requests(w, b), {"received": [], "sent": []}, "nothing waiting for B")
+    eq(search(w, a, "bob")[0]["relation"], "friend", "shown as friend")
+    eq(w.rpc(a, "select count(*) from public.friendships")[0][0], 1, "one friendship row")
+
+
+@test
+def search_finds_only_people_with_a_username_and_shows_only_who_they_are(w: World):
+    a, b, c = w.new_member("a"), w.new_member("b"), w.new_member("c")
+    hidden = w.new_member("hidden")         # never chose a username
+    stranger = w.new_user("stranger")       # not a member
+    social(w, a, "alice")
+    w.rpc(b, "insert into public.profiles (user_id, name, bio, photo) values "
+             "(auth.uid(), 'Real Name', 'secret bio', 'profile/b.jpg')")
+    social(w, b, "bob_smith", "Bobby", photo=False, bio=True, stats=True, level=True, list="friends")
+    w.rpc(c, "insert into public.profiles (user_id, photo) values (auth.uid(), 'profile/c.jpg')")
+    social(w, c, "carol", "Carol", photo=True)
+    w.rpc(hidden, "insert into public.profiles (user_id, name) values (auth.uid(), 'Hidden Harry')")
+
+    eq(search(w, a, "harry"), [], "people without a username can't be found")
+    eq(search(w, a, "real"), [], "not found by their private profile name")
+    eq(search(w, a, "alice"), [], "you don't find yourself")
+    eq(search(w, a, "b"), [], "at least two characters")
+    eq(search(w, a, "%"), [], "wildcards are literal")
+    eq([p["username"] for p in search(w, a, "@BOB")], ["bob_smith"], "@ and case ignored")
+    eq([p["username"] for p in search(w, a, "obby")], ["bob_smith"], "part of the display name")
+    bob = search(w, a, "bob_")[0]
+    eq(set(bob), {"userId", "username", "displayName", "photo", "relation"}, "only identity")
+    eq(bob["photo"], None, "photo hidden unless shared")
+    assert "secret bio" not in json.dumps(bob) and "Real Name" not in json.dumps(bob)
+    eq(search(w, a, "carol")[0]["photo"], "profile/c.jpg", "shared photo")
+
+    # Searching needs a username of your own, and membership.
+    expect_error(lambda: search(w, hidden, "alice"), "PT409", "username_required")
+    expect_error(lambda: search(w, stranger, "alice"), "PT403", "not_a_member")
+    expect_error(lambda: w.rpc(None, "select public.search_people('alice')"), "42501")
+
+    # Disabled members disappear.
+    w.rpc(w.owner, "select public.set_member_status(:u, 'disabled')", u=c)
+    eq(search(w, a, "carol"), [], "disabled member hidden")
+
+
+@test
+def usernames_are_validated_and_unique(w: World):
+    a, b = w.new_member("a"), w.new_member("b")
+    for bad in ["ab", "has space", "Ümlaut", "x" * 21, "dot.ted", ""]:
+        expect_error(lambda: social(w, a, bad, "A"), "PT422", "invalid_username")
+    expect_error(lambda: social(w, a, "alice", "   "), "PT422", "invalid_display_name")
+    expect_error(lambda: social(w, a, "alice", "A", list="public"), "PT422", "invalid_visibility")
+    eq(social(w, a, "  @Alice ", " Alice ")["username"], "alice", "normalised")
+    expect_error(lambda: social(w, b, "ALICE", "B"), "PT409", "username_taken")
+    eq(social(w, a, "alice2", "Alice")["username"], "alice2", "can rename")
+    eq(social(w, b, "alice", "B")["username"], "alice", "freed name reusable")
+    p = social(w, a, "alice2", "Alice")
+    eq((p["list_visibility"], p["show_photo"], p["show_bio"], p["show_level"], p["memory_visibility"]),
+       ("private", False, False, False, "private"), "everything private by default")
+
+
+@test
+def invalid_and_duplicate_requests_are_rejected(w: World):
+    a, b, c = w.new_member("a"), w.new_member("b"), w.new_member("c")
+    nobody = w.new_member("nobody")
+    for u, n in [(a, "alice"), (b, "bob"), (c, "carol")]:
+        social(w, u, n)
+    expect_error(lambda: send(w, a, a), "PT422", "cannot_add_yourself")
+    expect_error(lambda: send(w, a, nobody), "PT404", "person_not_found")
+    expect_error(lambda: send(w, a, str(uuid.uuid4())), "PT404", "person_not_found")
+    expect_error(lambda: send(w, nobody, a), "PT409", "username_required")
+
+    first = send(w, a, b)
+    eq(send(w, a, b), first, "sending again returns the same request")
+    expect_error(lambda: send(w, b, a), "PT409", "they_already_asked_you")
+    eq(w.db.admin("select count(*) from public.friend_requests")[0][0], 1, "one request")
+    # The database itself refuses a second open request between the two.
+    expect_error(lambda: w.db.admin(
+        "insert into public.friend_requests (sender_id, recipient_id) values (:b, :a)", a=a, b=b),
+        "23505")
+
+    rid = first["requestId"]
+    expect_error(lambda: respond(w, a, rid), "PT404", "request_not_found")       # sender
+    expect_error(lambda: respond(w, c, rid), "PT404", "request_not_found")       # outsider
+    expect_error(lambda: w.rpc(b, "select public.cancel_friend_request(:r)", r=rid),
+                 "PT404", "request_not_found")                                    # recipient
+    expect_error(lambda: w.rpc(c, "select public.cancel_friend_request(:r)", r=rid),
+                 "PT404", "request_not_found")
+    eq(w.rpc(a, "select public.cancel_friend_request(:r)", r=rid)[0][0]["status"], "cancelled", "cancel")
+    eq(w.rpc(a, "select public.cancel_friend_request(:r)", r=rid)[0][0]["status"], "cancelled",
+       "cancel again is harmless")
+    expect_error(lambda: respond(w, b, rid), "PT409", "request_not_pending")
+    eq(requests(w, b)["received"], [], "cancelled request gone")
+
+    # Declined: stays declined; asking again must wait.
+    rid = send(w, a, b)["requestId"]
+    eq(respond(w, b, rid, accept=False)["status"], "declined", "decline")
+    eq(respond(w, b, rid, accept=False)["status"], "declined", "decline again is harmless")
+    expect_error(lambda: respond(w, b, rid), "PT409", "request_not_pending")
+    expect_error(lambda: w.rpc(a, "select public.cancel_friend_request(:r)", r=rid),
+                 "PT409", "request_not_pending")
+    expect_error(lambda: send(w, a, b), "PT409", "recently_declined")
+    eq(friends_of(w, b), [], "not friends")
+    # The one who declined can still ask later themselves.
+    rid = send(w, b, a)["requestId"]
+    eq(respond(w, a, rid)["status"], "accepted", "accepted")
+    eq(respond(w, a, rid)["status"], "accepted", "accept again is harmless")
+    expect_error(lambda: respond(w, a, rid, accept=False), "PT409", "request_not_pending")
+    expect_error(lambda: send(w, a, b), "PT409", "already_friends")
+    expect_error(lambda: send(w, b, a), "PT409", "already_friends")
+    eq(w.db.admin("select count(*) from public.friendships")[0][0], 1, "one friendship")
+    expect_error(lambda: w.db.admin(
+        "insert into public.friendships (user_low, user_high) values (:h, :l)",
+        l=min(a, b), h=max(a, b)), "23514")  # reversed pair refused
+
+
+@test
+def requests_and_friendships_cant_be_written_or_read_directly(w: World):
+    a, b, c = w.new_member("a"), w.new_member("b"), w.new_member("c")
+    for u, n in [(a, "alice"), (b, "bob"), (c, "carol")]:
+        social(w, u, n)
+    rid = send(w, a, b)["requestId"]
+    expect_error(lambda: w.rpc(b, "update public.friend_requests set status = 'accepted'"), "42501")
+    expect_error(lambda: w.rpc(c, "insert into public.friend_requests (sender_id, recipient_id) "
+                                  "values (:b, auth.uid())", b=b), "42501")
+    expect_error(lambda: w.rpc(c, "insert into public.friendships (user_low, user_high) "
+                                  "values (least(auth.uid(), cast(:a as uuid)), greatest(auth.uid(), cast(:a as uuid)))",
+                               a=a), "42501")
+    expect_error(lambda: w.rpc(a, "delete from public.friend_requests"), "42501")
+    expect_error(lambda: w.rpc(a, "update public.social_profiles set list_visibility = 'friends'"),
+                 "42501")
+    expect_error(lambda: w.rpc(a, "insert into public.social_profiles (user_id, username, display_name) "
+                                  "values (auth.uid(), 'zzz', 'z')"), "42501")
+    eq(w.rpc(c, "select count(*) from public.friend_requests")[0][0], 0, "outsider sees no requests")
+    eq(w.rpc(a, "select count(*) from public.social_profiles")[0][0], 1, "only own settings")
+    respond(w, b, rid)
+    eq(w.rpc(c, "select count(*) from public.friendships")[0][0], 0, "outsider sees no friendships")
+    for t in ["social_profiles", "friend_requests", "friendships"]:
+        expect_error(lambda: w.rpc(None, f"select * from public.{t}"), "42501")
+
+
+@test
+def friend_profile_shows_only_what_the_owner_shares(w: World):
+    a, b, c = w.new_member("a"), w.new_member("b"), w.new_member("c")
+    w.rpc(b, "insert into public.profiles (user_id, name, nickname, age, started_on, bio, photo) values "
+             "(auth.uid(), 'Bob Real', 'Bobster', 41, '2020-01-02', 'Loves boats', 'profile/b.jpg')")
+    for t in ["sail", "climb", "dive"]:
+        add_item(w, b, t)
+    items = w.rpc(b, "select id from public.items order by position")
+    w.rpc(b, "select public.set_item_completed(:i, true, '2026-10-01')", i=items[0][0])
+    social(w, a, "alice")
+    social(w, c, "carol")
+    social(w, b, "bob", "Bob")
+
+    eq(set(profile_of(w, a, b)), {"userId", "username", "displayName", "photo", "relation"},
+       "non-friend: identity only")
+    befriend(w, a, b)
+    p = profile_of(w, a, b)
+    eq(set(p), {"userId", "username", "displayName", "photo", "relation", "listShared"},
+       "friend, nothing shared yet")
+    eq((p["relation"], p["listShared"], p["photo"]), ("friend", False, None), "defaults private")
+    for secret in ["Bob Real", "Bobster", "41", "Loves boats", "2020-01-02"]:
+        assert secret not in json.dumps(p), f"{secret} leaked"
+
+    social(w, b, "bob", "Bob", photo=True, bio=True, started=True, stats=True, level=True)
+    p = profile_of(w, a, b)
+    eq((p["photo"], p["bio"], p["startedOn"]), ("profile/b.jpg", "Loves boats", "2020-01-02"), "shared")
+    eq(p["stats"], {"completed": 1, "listed": 3, "journeysFinished": 0}, "stats")
+    eq(p["progress"], {"level": 0, "exp": 1000}, "level and EXP from the same formula")
+    assert "Bob Real" not in json.dumps(p) and "41" not in json.dumps(p), "name/age never shared"
+    eq(set(profile_of(w, c, b)), {"userId", "username", "displayName", "photo", "relation"},
+       "still identity only for a non-friend")
+    # Turning a field off hides it on the next request.
+    social(w, b, "bob", "Bob", photo=True, bio=False, stats=True)
+    p = profile_of(w, a, b)
+    assert "bio" not in p and "progress" not in p and "startedOn" not in p, "hidden again"
+    eq(profile_of(w, b, b)["relation"], "self", "own preview")
+    expect_error(lambda: profile_of(w, a, str(uuid.uuid4())), "PT404", "person_not_found")
+
+
+@test
+def bucket_list_visibility_is_enforced_and_revoked_at_once(w: World):
+    a, b, c = w.new_member("a"), w.new_member("b"), w.new_member("c")
+    for t in ["first", "second", "third"]:
+        add_item(w, b, t)
+    ids = [str(r[0]) for r in w.rpc(b, "select id from public.items order by position")]
+    w.rpc(b, "select public.save_order(cast(:o as uuid[]))", o="{%s}" % ",".join(reversed(ids)))
+    w.rpc(b, "select public.set_item_completed(:i, true, '2026-10-01')", i=ids[0])
+    save_memory(w, b, ids[0], photos=[photo()], text="private memory text", location="Secret place")
+    for u, n in [(a, "alice"), (b, "bob"), (c, "carol")]:
+        social(w, u, n)
+    befriend(w, a, b)
+
+    # Private (the default): even a friend can't see it.
+    expect_error(lambda: list_of(w, a, b), "PT403", "list_not_shared")
+    social(w, b, "bob", list="friends")
+    shared = list_of(w, a, b)
+    eq([i["title"] for i in shared["items"]], ["third", "second", "first"], "owner's order")
+    eq(shared["items"][2]["completedOn"], "2026-10-01", "completion shown")
+    eq(set(shared["items"][0]), {"number", "title", "description", "isCompleted", "completedOn"},
+       "entries only")
+    text = json.dumps(shared)
+    assert "private memory" not in text and "Secret place" not in text and ids[0] not in text, \
+        "no memories, photos or ids"
+    # Non-friends get the same refusal as for a private list.
+    e1 = expect_error(lambda: list_of(w, c, b), "PT403", "list_not_shared")
+    # Making it private ends access on the very next request.
+    social(w, b, "bob", list="private")
+    e2 = expect_error(lambda: list_of(w, a, b), "PT403", "list_not_shared")
+    eq(e1.message, e2.message, "indistinguishable refusals")
+    social(w, b, "bob", list="friends")
+    eq(len(list_of(w, a, b)["items"]), 3, "shared again")
+    # Removing the friend ends it too (either side may remove).
+    eq(w.rpc(b, "select public.remove_friend(:a)", a=a)[0][0], True, "removed")
+    eq(w.rpc(b, "select public.remove_friend(:a)", a=a)[0][0], False, "already removed")
+    expect_error(lambda: list_of(w, a, b), "PT403", "list_not_shared")
+    eq(friends_of(w, a), [], "gone from A's friends")
+    eq(set(profile_of(w, a, b)), {"userId", "username", "displayName", "photo", "relation"},
+       "profile back to identity only")
+    # Direct table reads never show someone else's rows.
+    for t in ["journeys", "items", "memories", "photos", "profiles", "settings"]:
+        eq(w.rpc(a, f"select count(*) from public.{t} where user_id = :b", b=b)[0][0], 0, f"{t} hidden")
+    expect_error(lambda: w.rpc(a, "select * from private.visible_items(:b, auth.uid())", b=b), "42501")
+    expect_error(lambda: w.rpc(a, "select private.can_view_list(:b, auth.uid())", b=b), "42501")
+
+
+@test
+def friends_can_never_change_each_others_lists(w: World):
+    a, b = w.new_member("a"), w.new_member("b")
+    item = add_item(w, b, "bob's thing")
+    mem = save_memory(w, b, item["id"])
+    social(w, a, "alice")
+    social(w, b, "bob", list="friends")
+    befriend(w, a, b)
+    before = w.rpc(b, "select public.export_archive()")[0][0]
+    for sql in [
+        "select public.update_item(:i, 'hacked', '')",
+        "select public.set_item_completed(:i, true, '2026-10-01')",
+    ]:
+        expect_error(lambda: w.rpc(a, sql, i=item["id"]), "PT404")
+    expect_error(lambda: save_memory(w, a, item["id"]), "PT404")
+    # Deletes report "nothing deleted" for ids the caller doesn't own.
+    eq(w.rpc(a, "select public.delete_item(:i)", i=item["id"])[0][0]["deleted"], False, "delete item")
+    eq(w.rpc(a, "select public.delete_memory(:m)", m=mem["memory"]["id"])[0][0]["deleted"], False,
+       "delete memory")
+    expect_error(lambda: w.rpc(a, "select public.save_order(cast(:o as uuid[]))",
+                               o="{%s}" % item["id"]))
+    eq(w.rpc(a, "update public.profiles set bio = 'x' where user_id = :b returning 1", b=b), [],
+       "no profile update")
+    eq(w.rpc(b, "select public.export_archive()")[0][0], before, "Bob's archive unchanged")
+
+
+@test
+def shared_profile_photo_is_the_only_file_friends_can_read(w: World):
+    a, b, c = w.new_member("a"), w.new_member("b"), w.new_member("c")
+    w.rpc(b, "insert into public.profiles (user_id, photo) values (auth.uid(), 'profile/now.jpg')")
+    for name in ["profile/now.jpg", "profile/old.jpg", "photos/p.jpg", "thumbs/p.jpg"]:
+        w.rpc(b, "insert into storage.objects (bucket_id, name) values ('photos', :n)", n=f"{b}/{name}")
+    social(w, a, "alice")
+    social(w, b, "bob", photo=False, list="friends")
+    befriend(w, a, b)
+
+    def visible(viewer):
+        return sorted(r[0] for r in w.rpc(viewer, "select name from storage.objects where name like :p",
+                                           p=f"{b}/%"))
+    eq(visible(a), [], "photo not shared")
+    social(w, b, "bob", photo=True, list="friends")
+    eq(visible(a), [f"{b}/profile/now.jpg"], "only the current profile photo")
+    eq(visible(c), [], "members without a username can't read it")
+    social(w, c, "carol")
+    eq(visible(c), [f"{b}/profile/now.jpg"], "shown in search, so readable")
+    expect_error(lambda: w.rpc(a, "insert into storage.objects (bucket_id, name) values ('photos', :n)",
+                               n=f"{b}/profile/evil.jpg"), "42501")
+    eq(w.rpc(a, "delete from storage.objects where name like :p returning 1", p=f"{b}/%"), [],
+       "can't delete it")
+    social(w, b, "bob", photo=False)
+    eq(visible(a), [], "hidden again at once")
+
+
+@test
+def leaving_friends_or_being_disabled_ends_sharing(w: World):
+    a, b, c = w.new_member("a"), w.new_member("b"), w.new_member("c")
+    add_item(w, b, "thing")
+    for u, n in [(a, "alice"), (c, "carol")]:
+        social(w, u, n)
+    social(w, b, "bob", list="friends")
+    befriend(w, a, b)
+    send(w, b, c)
+    # The owner disabling a member hides them and their list.
+    w.rpc(w.owner, "select public.set_member_status(:u, 'disabled')", u=b)
+    expect_error(lambda: list_of(w, a, b), "PT403", "list_not_shared")
+    eq(friends_of(w, a), [], "disabled friend hidden")
+    eq(requests(w, c)["received"], [], "their request hidden")
+    w.rpc(w.owner, "select public.set_member_status(:u, 'active')", u=b)
+    eq(friends_of(w, a), ["bob"], "back when enabled again")
+    # Stopping Friends removes the username, friendships and requests,
+    # but not the list.
+    eq(w.rpc(b, "select public.delete_social_profile()")[0][0], True, "left")
+    eq(friends_of(w, a), [], "friendship gone")
+    eq(requests(w, c)["received"], [], "request gone")
+    eq(search(w, a, "bob"), [], "can't be found")
+    eq(w.db.admin("select count(*) from public.friend_requests where :b in (sender_id, recipient_id)",
+                  b=b)[0][0], 0, "requests deleted")
+    eq(count(w, b, "items"), 1, "list kept")
+
+
+@test
+def friend_actions_leave_archives_and_progress_untouched(w: World):
+    a, b = w.new_member("a"), w.new_member("b")
+    import_archive(w, a, fixture())
+    add_item(w, b, "x")
+    before = {u: w.rpc(u, "select public.export_archive()")[0][0] for u in (a, b)}
+    rev = {u: w.rpc(u, "select public.pull_changes(0)")[0][0]["revision"] for u in (a, b)}
+    social(w, a, "alice", stats=True, level=True, list="friends")
+    social(w, b, "bob", list="friends")
+    befriend(w, a, b)
+    list_of(w, b, a)
+    profile_of(w, b, a)
+    w.rpc(a, "select public.remove_friend(:b)", b=b)
+    w.rpc(a, "select public.delete_social_profile()")
+    for u in (a, b):
+        eq(w.rpc(u, "select public.export_archive()")[0][0], before[u], "archive unchanged")
+        eq(w.rpc(u, "select public.pull_changes(0)")[0][0]["revision"], rev[u], "no sync changes")
+
+
 # -------------------------------------------------------------------- runner
 
 def apply_schema(db: Db):

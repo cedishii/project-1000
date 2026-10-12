@@ -1,6 +1,6 @@
 # Cloud accounts and sync (foundation)
 
-Status: **built, tested and released (v1.2.0, website live).** The backend runs on the
+Status: **built, tested and released (v1.4.0, website live).** The backend runs on the
 project's Supabase database. The app (same code for Android, iOS and
 the web) can sign in, keep a list in the account, and copy a phone's
 list there with verification. On the phone the account is optional,
@@ -21,6 +21,10 @@ Web app (later) ─────┘                         └─ Storage: priva
 | Archive tables, ownership, row-level security, change tracking | `…000200_archive.sql` |
 | The app's rules as API functions (add/edit/complete/delete/reorder, memories, regress, import/export, sync) | `…000300_archive_api.sql` |
 | Photo bucket and storage policies | `…000400_storage.sql` |
+| Friends, sharing choices and what friends may read (see [FRIENDS.md](FRIENDS.md)) | `20261013000100_friends.sql` |
+| Merging a backup or a phone's list into an account; live change signals | `20261013000200_merge_and_live.sql` |
+| Backups in memory (website), export and merge of an account | `lib/services/backup/backup_bytes.dart`, `lib/services/cloud/cloud_backup.dart` |
+| Live updates (Supabase Realtime) | `lib/services/cloud/live_updates.dart` |
 | Security and behaviour tests | `supabase/tests/run_tests.py` |
 | Phone → cloud migration (resumable, verified) | `lib/services/cloud/cloud_migration.dart` |
 | Shared design tokens | `design/tokens.json` |
@@ -107,6 +111,16 @@ The server is the source of truth.
   - Starting a new journey needs a connection.
   - Signing out deletes the copy, with a warning first if changes are
     still waiting.
+- **Live updates:** an open app (phone or website) subscribes through
+  Supabase Realtime to its own account's row in `sync_heads`, which the
+  server bumps on every change to the archive (row-level security: no
+  other account's signal is delivered, and the signal carries no data).
+  On a signal the phone syncs and the website reloads, usually within a
+  few seconds. When the subscription reconnects after the phone was
+  offline, the phone syncs at once, sending its waiting changes. Nothing
+  depends on a signal arriving: apps still catch up on start, when they
+  return to the foreground, after each change and every minute while
+  changes wait.
 - **No duplicates:** new records use client-generated UUIDs, and
   repeated calls return the existing record.
 
@@ -206,9 +220,84 @@ stub reproduces `auth.uid()`, roles, default grants and `storage.objects`
 policies, but it is not Supabase itself. Run the suite against
 `supabase start` (below) before relying on it.
 
-## Migrating a phone's archive
+## Connecting a phone to an account
 
-The phone's archive is personal data, so the migration is explicit and
+Settings → Account → **Connect this phone to my account**. It also opens
+by itself right after signing in on a phone that has its own list.
+`ConnectScreen` first compares both sides, without changing anything,
+and offers only what is safe:
+
+| The account | What it offers |
+|---|---|
+| is empty | **Copy to my account**: the exact copy below, checked record by record |
+| already has everything on the phone | Use the account |
+| has other things too | A preview of the **merge** (below), or use the account without copying |
+| has a different history of finished journeys | Use the account without copying, or keep the phone's list |
+
+Before anything is sent, a backup of the phone's list is saved on the
+phone (`safety_backup/`, and it can be shared from the result screen).
+The phone's own archive is never changed. Signing out brings it back.
+Afterwards the phone switches to the account, and changes then sync
+both ways, including offline changes (see Sync strategy).
+
+## Merging (import into an account that has its own list)
+
+`merge_archive(data, apply, match_titles)` handles both a backup
+imported on the website or a signed-in phone, and a phone connecting to
+an account that already has things. It only adds; it never removes or
+rewrites what the account holds.
+
+- **Same id, same record:** importing or connecting the same list again
+  adds nothing. No duplicates, and EXP is never counted twice because it
+  is derived from the completed count.
+- **Things** of the source's current journey join the account's current
+  list, after its own, in the source's order.
+  - A thing whose id is already there, or (optional, on by default) with
+    the same title, counts as the same thing.
+  - Its missing memories and photos are added.
+  - If the source has it done and the account doesn't, it becomes done
+    with the source's date.
+  - Its text stays as the account has it.
+- **Numbers** are kept unless the account already uses one; then the
+  thing gets the lowest free number.
+- **Finished journeys** are added when the account has none of its own
+  (the current journey's number moves after them). Two different
+  histories are refused (`history_conflict`).
+- **Profile** only fills an empty one. **Settings** are only added for
+  keys the account doesn't have.
+- **Preview:** `apply = false` does exactly the same work in a
+  sub-transaction and rolls it back, so the preview can't differ from
+  what applying does.
+- **Afterwards:** the client uploads the photo files the account is
+  missing, then verifies with a second dry run that reports "nothing to
+  add", and by checking every file.
+
+Tests: 7 database tests (empty account, twice, own list, histories, bad
+files and other accounts' ids, the 1,000 limit, live signal) and
+`test/cloud_backup_live_test.dart`.
+
+## Import and export on the website
+
+Settings → Data, on the website and on a phone signed in to an account:
+
+- **Export backup:** the account as the same `.zip` the phone app makes
+  (`data.json` version 2, manifest with SHA-256 checksums, photos), so
+  it imports on any phone. Built in memory (`encodeBackupBytes`).
+- **Import backup:** a backup from a phone or the website.
+  - The file is checked exactly like on the phone: format, version,
+    checksums and data consistency (`readBackupBytes`, using the same
+    validator).
+  - A preview shows what will be added.
+  - Nothing happens until confirmed, and then it merges as described
+    above. There is no "replace" on the website: an account's data is
+    never wiped by an import.
+  - Files larger than 1 GB are refused.
+- The phone app's own Export/Import (no account) is unchanged. It still
+  replaces the phone's archive after confirmation, as before.
+
+## Copying into an empty account (exact copy)
+
+The phone's archive is personal data, so the copy is explicit and
 conservative (`CloudMigration`):
 
 1. It reads the archive as the backup `data.json` (the same, already
@@ -227,9 +316,10 @@ conservative (`CloudMigration`):
 - **Repeatable and resumable:** an interrupted run is finished by running
   it again. Records already stored are skipped (never overwritten), and
   files already uploaded are not uploaded again.
-- **Refuses to merge:** if the account already holds a *different*
-  archive, it stops with `cloud_has_other_data`. This is the same rule as
-  backup import. A brand-new account's empty Journey 1 doesn't count.
+- **Only into an empty account:** if the account already holds a
+  *different* archive, `import_archive` stops with
+  `cloud_has_other_data`; the connect screen then offers the merge above
+  instead. A brand-new account's empty Journey 1 doesn't count.
 - **Photos already missing on the phone** are listed, not fatal, as they
   are in backups.
 - **Limitation:** files are verified by size, not checksum.
@@ -357,5 +447,7 @@ account mode (tested on the Android emulator), and the web version
    meant for testing).
 5. Done in 1.3.0: offline editing while signed in (phone), Life Album
    PDF on the website, list and details side by side on wide screens.
-6. Later, if wanted: a checksum (not just size) check for migrated
+6. Done in 1.4.0: Friends ([FRIENDS.md](FRIENDS.md)), connecting a phone
+   with a merge preview, import/export on the website, live updates.
+7. Later, if wanted: a checksum (not just size) check for migrated
    photos; Life Album PDF fonts for CJK scripts and emoji.

@@ -159,18 +159,27 @@ no network requests. With the optional account your data is in your
 account only, readable by you alone. Details:
 [docs/PRIVACY.md](docs/PRIVACY.md).
 
-## Accounts and the website (built, not yet released)
+## Accounts, the website and Friends
 
-The same app also runs in a web browser, and an optional account keeps
-one list in sync between devices:
+The same app also runs in a web browser at https://1000-things.vercel.app,
+and an optional account keeps one list in sync between devices:
 
 - **Invite-only:** the owner approves an email, and the friend creates
   their own account with their own password.
 - **Private per account,** enforced by the database: nobody, including
-  the owner, can see anyone else's list, memories or photos.
-- **Optional on the phone:** without signing in, nothing changes. With
-  an account, "Copy this phone's list to my account" copies everything
-  and then checks the copy, without changing the phone's archive.
+  the owner, can see anyone else's list, memories or photos, except
+  what you choose to share with friends.
+- **Optional on the phone:** without signing in, nothing changes. After
+  signing in, "Connect this phone to my account" shows what will happen
+  and then copies (or safely merges) the phone's list into the account,
+  checks it, and uses it. The phone's own archive is never changed.
+- **Live sync:** changes on the phone or the website appear on the other
+  within seconds, and changes made offline are sent when the phone is
+  back online.
+- **Import and export on the website,** in the same backup format as the
+  phone app.
+- **Friends:** usernames, friend requests, and per-field sharing with
+  everything off by default (see [docs/FRIENDS.md](docs/FRIENDS.md)).
 
 The backend is in `supabase/`. Details are in
 [docs/CLOUD.md](docs/CLOUD.md) and [docs/WEB_PLAN.md](docs/WEB_PLAN.md).
@@ -178,7 +187,8 @@ Releases up to 1.1.0 are fully offline.
 
 ## Known limitations
 
-- **Import replaces the whole archive.** It does not merge two archives.
+- **Importing on a phone without an account replaces its whole archive.**
+  Importing into an account (website or signed-in phone) merges instead.
 - **Large imports need free space.** For a short time an import needs
   roughly three times the backup's size: the file itself, the copy made
   when you pick it, and the unpacked archive.

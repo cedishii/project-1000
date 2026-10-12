@@ -10,7 +10,7 @@ import '../app.dart';
 import '../feedback.dart';
 import '../store_scope.dart';
 import 'admin_screen.dart';
-import 'migration_screen.dart';
+import 'connect_screen.dart';
 import 'sign_in_screen.dart';
 
 /// The cloud account: who is signed in, which archive this device uses,
@@ -53,6 +53,21 @@ class _AccountScreenState extends State<AccountScreen> {
         builder: (context) =>
             SignInScreen(onDone: () async => Navigator.pop(context)),
       ),
+    );
+    if (!mounted) return;
+    _refresh();
+    // Signed in on a phone with its own list: offer to connect the two
+    // right away (nothing is sent without the user's choice).
+    if (!kIsWeb && _account.isSignedIn && StoreScope.read(context).isLocal) {
+      final m = await _membership;
+      if (m is ActiveMember && mounted) await _connect();
+    }
+  }
+
+  Future<void> _connect() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ConnectScreen()),
     );
     if (mounted) _refresh();
   }
@@ -165,34 +180,17 @@ class _AccountScreenState extends State<AccountScreen> {
                       const _Header('This phone'),
                       if (store.isLocal) ...[
                         ListTile(
-                          leading: const Icon(Icons.cloud_upload_outlined),
-                          title: const Text(
-                            'Copy this phone\'s list to my account',
-                          ),
+                          leading: const Icon(Icons.cloud_sync_outlined),
+                          title: const Text('Connect this phone to my account'),
                           subtitle: Text(
                             _migration?['status'] == 'verified'
-                                ? 'Copied and verified'
-                                : 'Every journey, memory and photo, checked '
-                                      'after copying. Nothing on this phone '
-                                      'changes.',
+                                ? 'Copied and checked · use the same list '
+                                      'as the website'
+                                : 'Bring this phone\'s list into your account '
+                                      'and use the same list as the website. '
+                                      'Shows what will happen first.',
                           ),
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const MigrationScreen(),
-                              ),
-                            );
-                            if (mounted) _refresh();
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.cloud_outlined),
-                          title: const Text('Use my account on this phone'),
-                          subtitle: const Text(
-                            'Show the same list as the website',
-                          ),
-                          onTap: () => _useCloud(true),
+                          onTap: _connect,
                         ),
                       ] else
                         ListTile(

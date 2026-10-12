@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../services/cloud/account.dart';
 import '../services/cloud/cloud_archive.dart';
 import '../services/cloud/cloud_media.dart';
+import '../services/cloud/live_updates.dart';
 import '../services/cloud/synced_archive.dart';
 import 'app_store.dart';
 
@@ -67,6 +68,7 @@ Future<AppStore> openSyncedStore(Directory dir) async {
   );
   await store.load();
   unawaited(synced.sync());
+  store.live = LiveUpdates.start(client, store.refresh);
   return store;
 }
 
@@ -86,5 +88,6 @@ Future<AppStore> openCloudStore() async {
     isOwner: membership.isOwner,
   );
   await store.load();
+  store.live = LiveUpdates.start(client, store.refresh);
   return store;
 }

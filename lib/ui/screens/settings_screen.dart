@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../services/cloud/account.dart';
 import '../backup_flows.dart';
+import '../cloud_backup_flows.dart';
 import '../store_scope.dart';
 import 'about_screen.dart';
 import 'account_screen.dart';
+import 'cloud_import_screen.dart';
 import 'profile_screen.dart';
 import 'reorder_screen.dart';
+import 'sharing_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -55,6 +58,13 @@ class SettingsScreen extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const ProfileScreen()),
             ),
           ),
+          if (!store.isLocal)
+            ListTile(
+              leading: const Icon(Icons.shield_outlined),
+              title: const Text('Privacy and sharing'),
+              subtitle: const Text('Your username and what friends can see'),
+              onTap: () => openSharingSettings(context),
+            ),
           if (CloudConfig.isConfigured) ...[
             const _Header('Account'),
             ListTile(
@@ -93,6 +103,29 @@ class SettingsScreen extends StatelessWidget {
               title: const Text('Import backup'),
               subtitle: const Text('Restore from a backup file'),
               onTap: () => importFlow(context),
+            ),
+          ],
+          if (!store.isLocal) ...[
+            const _Header('Data'),
+            ListTile(
+              leading: const Icon(Icons.upload_file_outlined),
+              title: const Text('Export backup'),
+              subtitle: const Text(
+                'Everything in your account, photos included, in the same '
+                'format as the phone app',
+              ),
+              onTap: () => cloudExportFlow(context),
+            ),
+            ListTile(
+              leading: const Icon(Icons.download_outlined),
+              title: const Text('Import backup'),
+              subtitle: const Text(
+                'Add a backup from a phone or the website to your account',
+              ),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CloudImportScreen()),
+              ),
             ),
           ],
           const _Header('List'),

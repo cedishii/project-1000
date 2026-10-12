@@ -16,13 +16,34 @@ class ProfileAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final store = StoreScope.read(context);
     final photo = profile.photo;
-    final px = (size * MediaQuery.devicePixelRatioOf(context)).round();
-    final initials = _initials(
-      profile.name.isNotEmpty ? profile.name : profile.nickname,
+    return PersonAvatar(
+      name: profile.name.isNotEmpty ? profile.name : profile.nickname,
+      image: photo == null ? null : StoreScope.read(context).media.image(photo),
+      size: size,
     );
+  }
+}
+
+/// Someone's picture in a circle ([image]), or their initials, or a
+/// person icon.
+class PersonAvatar extends StatelessWidget {
+  const PersonAvatar({
+    super.key,
+    required this.name,
+    required this.image,
+    this.size = 88,
+  });
+
+  final String name;
+  final ImageProvider? image;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final px = (size * MediaQuery.devicePixelRatioOf(context)).round();
+    final initials = _initials(name);
     final fallback = Container(
       color: scheme.secondaryContainer,
       alignment: Alignment.center,
@@ -37,6 +58,7 @@ class ProfileAvatar extends StatelessWidget {
               style: display(size * 0.36, color: scheme.onSecondaryContainer),
             ),
     );
+    final image = this.image;
     return Semantics(
       label: 'Profile picture',
       image: true,
@@ -55,14 +77,10 @@ class ProfileAvatar extends StatelessWidget {
           ],
         ),
         child: ClipOval(
-          child: photo == null
+          child: image == null
               ? fallback
               : Image(
-                  image: ResizeImage(
-                    store.media.image(photo),
-                    width: px,
-                    height: px,
-                  ),
+                  image: ResizeImage(image, width: px, height: px),
                   fit: BoxFit.cover,
                   errorBuilder: (_, _, _) => fallback,
                 ),
