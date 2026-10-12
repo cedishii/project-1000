@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../services/album/album_plan.dart';
@@ -64,13 +65,14 @@ class _LifeAlbumScreenState extends State<LifeAlbumScreen> {
           appBar: AppBar(
             title: Text(title),
             actions: [
-              IconButton(
-                tooltip: 'Export as PDF',
-                icon: const Icon(Icons.picture_as_pdf_outlined),
-                onPressed: data == null
-                    ? null
-                    : () => exportAlbumPdfFlow(context, widget.journeyId),
-              ),
+              if (!kIsWeb)
+                IconButton(
+                  tooltip: 'Export as PDF',
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  onPressed: data == null
+                      ? null
+                      : () => exportAlbumPdfFlow(context, widget.journeyId),
+                ),
             ],
           ),
           body: snap.hasError

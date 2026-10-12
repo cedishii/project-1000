@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../services/cloud/account.dart';
 import '../backup_flows.dart';
 import '../store_scope.dart';
 import 'about_screen.dart';
+import 'account_screen.dart';
 import 'profile_screen.dart';
 import 'reorder_screen.dart';
 
@@ -53,22 +55,46 @@ class SettingsScreen extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const ProfileScreen()),
             ),
           ),
-          const _Header('Data'),
-          ListTile(
-            leading: const Icon(Icons.upload_file_outlined),
-            title: const Text('Export backup'),
-            subtitle: const Text(
-              'Save everything — every journey, memory, photo and your '
-              'profile — to one file',
+          if (CloudConfig.isConfigured) ...[
+            const _Header('Account'),
+            ListTile(
+              leading: Icon(
+                store.isLocal
+                    ? Icons.cloud_outlined
+                    : Icons.cloud_done_outlined,
+              ),
+              title: Text(store.account ?? 'Project: 1000 account'),
+              subtitle: Text(
+                store.isLocal
+                    ? 'Optional: use your list on the website too'
+                    : store.isOwner
+                    ? 'Owner · your list is in your account'
+                    : 'Your list is in your account',
+              ),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AccountScreen()),
+              ),
             ),
-            onTap: () => exportFlow(context),
-          ),
-          ListTile(
-            leading: const Icon(Icons.download_outlined),
-            title: const Text('Import backup'),
-            subtitle: const Text('Restore from a backup file'),
-            onTap: () => importFlow(context),
-          ),
+          ],
+          if (store.isLocal) ...[
+            const _Header('Data'),
+            ListTile(
+              leading: const Icon(Icons.upload_file_outlined),
+              title: const Text('Export backup'),
+              subtitle: const Text(
+                'Save everything — every journey, memory, photo and your '
+                'profile — to one file',
+              ),
+              onTap: () => exportFlow(context),
+            ),
+            ListTile(
+              leading: const Icon(Icons.download_outlined),
+              title: const Text('Import backup'),
+              subtitle: const Text('Restore from a backup file'),
+              onTap: () => importFlow(context),
+            ),
+          ],
           const _Header('List'),
           ListTile(
             leading: const Icon(Icons.swap_vert_rounded),

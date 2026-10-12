@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../app.dart';
+import '../store_scope.dart';
 import '../theme.dart';
 import '../widgets/emblem.dart';
 
@@ -49,10 +50,17 @@ class AboutScreen extends StatelessWidget {
           _Section(
             title: 'Privacy',
             child: Text(
-              'Your list, memories and photos are stored only on this device. '
-              'There is no account, no cloud, no ads, no analytics and no '
-              'tracking. The app makes no network requests. Your data leaves '
-              'this device only when you export a backup yourself.',
+              StoreScope.of(context).isLocal
+                  ? 'Your list, memories and photos are stored only on this '
+                        'device. There are no ads, no analytics and no '
+                        'tracking. Unless you sign in to a Project: 1000 '
+                        'account, the app makes no network requests, and your '
+                        'data leaves this device only when you export a '
+                        'backup yourself.'
+                  : 'Your list, memories and photos are stored in your '
+                        'Project: 1000 account, which only you can open — not '
+                        'the owner, not other members. There are no ads, no '
+                        'analytics and no tracking.',
               style: muted,
             ),
           ),

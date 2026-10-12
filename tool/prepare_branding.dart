@@ -7,7 +7,7 @@
 // canvases sized for each platform. No artwork is redrawn or altered.
 //
 // Run from the project root:
-//   dart run tool/prepare_branding.dart
+//   dart run tool/prepare_branding.dart   (also writes the web icons)
 //   dart run flutter_launcher_icons
 //   dart run flutter_native_splash:create
 
@@ -49,6 +49,20 @@ void main() {
     'assets/branding/splash_emblem.png',
     _place(emblem, canvas: 1024, fraction: 0.6),
   );
+
+  // Web: favicon, app icons, and maskable icons (emblem inside the 80%
+  // safe zone, on the wall colour).
+  _write('web/favicon.png', _place(emblem, canvas: 64, fraction: 0.96));
+  for (final size in [192, 512]) {
+    _write(
+      'web/icons/Icon-$size.png',
+      _place(emblem, canvas: size, fraction: 0.84, fill: background),
+    );
+    _write(
+      'web/icons/Icon-maskable-$size.png',
+      _place(emblem, canvas: size, fraction: 0.66, fill: background),
+    );
+  }
 }
 
 /// Flood-fills the background from the region's edges, stopping at the

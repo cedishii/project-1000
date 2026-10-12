@@ -25,12 +25,14 @@ import '../services/photo_storage.dart';
 /// ([LocalArchive]) or the signed-in cloud account. Backup export and
 /// import exist only for the local archive ([isLocal]).
 class AppStore extends ChangeNotifier {
-  AppStore(this.backend, this.media, {this.account}) : _local = null;
+  AppStore(this.backend, this.media, {this.account, this.isOwner = false})
+    : _local = null;
 
   AppStore._local(LocalArchive local)
     : backend = local,
       media = LocalMedia(local.location, local.photos),
       account = null,
+      isOwner = false,
       _local = local;
 
   /// Opens the archive in the app's private documents folder.
@@ -56,6 +58,9 @@ class AppStore extends ChangeNotifier {
 
   /// The signed-in account (email) when the archive is in the cloud.
   final String? account;
+
+  /// The cloud account is Project: 1000's owner (may manage members).
+  final bool isOwner;
   final LocalArchive? _local;
 
   /// True when the archive is this phone's own (not a cloud account).

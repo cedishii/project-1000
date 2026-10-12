@@ -66,9 +66,11 @@ class _ProfileEditorScreenState extends State<ProfileEditorScreen> {
       return;
     }
     if (picked == null || !mounted) return;
+    final bytes = await picked.readAsBytes();
+    if (!mounted) return;
     final jpeg = await Navigator.push<Uint8List>(
       context,
-      MaterialPageRoute(builder: (_) => AvatarCropScreen(path: picked!.path)),
+      MaterialPageRoute(builder: (_) => AvatarCropScreen(bytes: bytes)),
     );
     if (jpeg != null && mounted) {
       setState(() {
@@ -324,8 +326,11 @@ class _ProfileEditorScreenState extends State<ProfileEditorScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Your profile stays on this phone. It is never uploaded or '
-              'shared, and it is included in your backups.',
+              StoreScope.read(context).isLocal
+                  ? 'Your profile stays on this phone. It is never uploaded '
+                        'or shared, and it is included in your backups.'
+                  : 'Your profile is kept in your account. Only you can see '
+                        'it.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: scheme.onSurfaceVariant,
               ),

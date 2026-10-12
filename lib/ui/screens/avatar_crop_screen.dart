@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -15,9 +14,10 @@ const int avatarSize = 720;
 /// cropped square as JPEG bytes (or null if cancelled). Everything stays
 /// on the phone.
 class AvatarCropScreen extends StatefulWidget {
-  const AvatarCropScreen({super.key, required this.path});
+  const AvatarCropScreen({super.key, required this.bytes});
 
-  final String path;
+  /// The picked image file's contents.
+  final Uint8List bytes;
 
   @override
   State<AvatarCropScreen> createState() => _AvatarCropScreenState();
@@ -39,7 +39,7 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
 
   Future<void> _load() async {
     try {
-      final bytes = await File(widget.path).readAsBytes();
+      final bytes = widget.bytes;
       final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
       final descriptor = await ui.ImageDescriptor.encoded(buffer);
       // Plenty for a 720 px crop, even when zoomed in.

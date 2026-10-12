@@ -1,0 +1,35 @@
+{
+    "name": "Project: 1000",
+    "short_name": "Project: 1000",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#FBF8F1",
+    "theme_color": "#29302E",
+    "description": "1000 Things Before I Die — your private bucket list and memory journal.",
+    "orientation": "any",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

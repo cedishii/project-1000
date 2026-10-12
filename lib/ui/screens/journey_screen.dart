@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../data/models.dart';
@@ -142,12 +143,14 @@ class _JourneyView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: () => exportAlbumPdfFlow(context, journey.id),
-            icon: const Icon(Icons.picture_as_pdf_outlined),
-            label: const Text('Export Life Album as PDF'),
-          ),
-          const SizedBox(height: 10),
+          if (!kIsWeb) ...[
+            OutlinedButton.icon(
+              onPressed: () => exportAlbumPdfFlow(context, journey.id),
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              label: const Text('Export Life Album as PDF'),
+            ),
+            const SizedBox(height: 10),
+          ],
           OutlinedButton.icon(
             onPressed: current
                 ? () => Navigator.of(context).popUntil((r) => r.isFirst)
