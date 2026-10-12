@@ -57,3 +57,10 @@ app.*.map.json
 /backups/
 # Local release output
 /dist/
+# Cloud secrets and Supabase CLI state
+.env
+.env.*
+!.env.example
+/supabase/.temp/
+/supabase/.branches/
+__pycache__/

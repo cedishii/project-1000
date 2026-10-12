@@ -408,5 +408,9 @@ class AppStore extends ChangeNotifier {
     onProgress: onProgress,
   );
 
+  /// The whole archive as the backup's data.json structure (read-only).
+  Future<Map<String, Object?>> archiveSnapshot() =>
+      export_service.archiveSnapshot(_db);
+
   Future<void> close() => _db.close();
 }

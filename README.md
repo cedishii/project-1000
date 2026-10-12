@@ -73,7 +73,9 @@ lib/
 test/          unit tests (run the real database code on desktop)
 integration_test/  on-device UI and performance tests
 tool/          prepare_branding.dart: icon images from the official logo
-docs/          backup format, privacy, release process
+docs/          backup format, privacy, release process, cloud and web plans
+supabase/      cloud backend: migrations (schema, security, API) and tests
+design/        design tokens shared with the future web app
 ```
 
 ## Running locally
@@ -154,6 +156,15 @@ The format is documented in [docs/BACKUP_FORMAT.md](docs/BACKUP_FORMAT.md).
 No account, no cloud sync, no ads, no analytics, no tracking. The
 release app does not request internet access at all. Details:
 [docs/PRIVACY.md](docs/PRIVACY.md).
+
+## Cloud accounts (in development)
+
+A shared backend for an upcoming web version and optional sync is being
+prepared in `supabase/`: invite-only accounts, per-account privacy
+enforced by the database, and a verified, resumable way to copy a
+phone's archive to the cloud. **The released app does not use it and
+remains fully offline.** See [docs/CLOUD.md](docs/CLOUD.md) and
+[docs/WEB_PLAN.md](docs/WEB_PLAN.md).
 
 ## Known limitations
 

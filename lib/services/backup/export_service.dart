@@ -45,7 +45,7 @@ Future<ExportResult> exportBackup({
   void Function(double progress)? onProgress,
 }) async {
   final exportedAt = (now ?? DateTime.now());
-  final data = await db.transaction((txn) => _snapshot(txn));
+  final data = await archiveSnapshot(db);
   final journeys = (data['journeys'] as List).cast<Map>();
   final allItems = [for (final j in journeys) ...(j['items'] as List)];
   final media = <String>[
@@ -111,6 +111,12 @@ Future<ExportResult> exportBackup({
     missingFiles: missing,
   );
 }
+
+/// The whole archive as the backup's data.json structure, read in one
+/// transaction (a consistent snapshot). Also what a cloud migration
+/// uploads (docs/CLOUD.md).
+Future<Map<String, Object?>> archiveSnapshot(Database db) =>
+    db.transaction((txn) => _snapshot(txn));
 
 /// Everything in the database, as the data.json structure.
 /// Journeys are listed oldest first; each journey's items in the user's
