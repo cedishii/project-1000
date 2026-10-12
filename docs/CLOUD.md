@@ -5,6 +5,10 @@ still fully offline and does not contain any network code. This document
 describes the shared backend that the phone and the future web app will
 both use, and what is left to connect them.
 
+The migrations were applied to the project's Supabase database on
+2026-10-12 (`supabase db push`). Anonymous access to every table,
+view and API function was checked against the live API and is refused.
+
 ```text
 Phone app (Flutter) ─┐                         ┌─ Postgres: journeys, items, memories,
                      ├── Supabase (Auth, API) ─┤   photos, profiles, settings, members
@@ -259,7 +263,8 @@ Never point the tests at the production database.
 
 ## What's left (next phase)
 
-1. Create the Supabase project and apply the migrations (your account).
+1. ~~Create the Supabase project and apply the migrations.~~ Done
+   2026-10-12. Still to do: sign up, then run `private.bootstrap_owner`.
 2. Run the tests against `supabase start` or a staging project.
 3. Phone: add `supabase_flutter`, a sign-in screen, an implementation of
    `CloudArchiveApi`, the migration screen, and cloud mode for
