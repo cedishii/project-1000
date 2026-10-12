@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.0 — Offline, side by side, and the album PDF on the web
+
+- **Works offline when signed in on a phone:** your account's list is
+  kept on the phone, so it opens and can be changed without a
+  connection. Changes are sent to your account as soon as the phone is
+  back online, in order and without duplicates. Photos you've seen
+  stay available offline. A small cloud icon on the home screen shows
+  changes still waiting, or that you're offline
+- **Side by side on big screens:** on a laptop or desktop the website
+  shows your list and the chosen thing next to each other
+- **Life Album PDF on the website:** download the album, with photos,
+  straight from the browser
+- Fixed: adding photos on the website; Life Album pages now use the
+  book's full width
+
 ## 1.2.0 — Accounts and the website
 
 - **Optional Project: 1000 account:** sign in, create an account (for

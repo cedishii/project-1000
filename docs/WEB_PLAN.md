@@ -124,5 +124,6 @@ content needs, not device names:
    sign-in/sign-up/reset/change password, Owner page.
 5. ✔ Hosted at https://1000-things.vercel.app (Vercel, from the `web-dist` branch); Supabase Auth URLs set.
 6. ☐ Approve the three friends' emails (owner action).
-7. ☐ Later: list-and-detail side by side on wide screens, Life Album
-   PDF in the browser, keyboard shortcuts.
+7. ✔ List and details side by side from 1200 px; Life Album PDF
+   downloads in the browser (1.3.0).
+8. ☐ Later, if wanted: keyboard shortcuts.

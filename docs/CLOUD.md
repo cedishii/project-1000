@@ -77,23 +77,43 @@ invalid input.
 
 ## Sync strategy
 
-The server is the source of truth. The design is deliberately simple:
-**online writes, cached reads**.
+The server is the source of truth.
 
-- **Web:** always online. It calls the functions above and reads tables
-  or `export_archive`.
-- **Phone in cloud mode (next phase):** each change is sent to the
-  function first, then the local SQLite database is updated from the
-  result. Local SQLite becomes a cache refreshed by `pull_changes`, which
-  provides rows plus tombstones, ordered by a per-account revision that
-  never skips a commit. Offline, the phone can still read everything.
-  Editing while offline needs either a queue (an outbox of the calls
-  above, which are all retry-safe) or a "you're offline" message. That
-  is a product decision for the next phase.
-- **No silent overwrites:** edits carry the revision the client last saw.
-  An outdated edit is refused, and the client reloads.
-- **No duplicates:** new records use client-generated UUIDs, and repeated
-  calls return the existing record.
+- **Website:** online. It calls the functions above directly
+  (`CloudArchive`).
+- **Phone signed in (`SyncedArchive`):** the phone keeps a full copy of
+  the account in its own SQLite database (same format as its own
+  archive, in `cloud_cache/<user id>/`), so the list opens and can be
+  changed offline:
+  - Every change is made in the copy first and appended to an outbox
+    (`outbox.json`, on disk, survives restarts).
+  - When the account can be reached (after each change, when the app
+    returns to the foreground, every minute while waiting), the outbox
+    is sent in order with the same retry-safe functions, keeping every
+    id. Then the copy catches up through `pull_changes` (rows and
+    tombstones since the last revision).
+  - The server's changes are applied only while nothing is waiting to
+    be sent, so a change made on the phone is never overwritten before
+    it has reached the account.
+  - A change is skipped only when the account definitely refuses it
+    (e.g. the thing was deleted on the website meanwhile). The copy is
+    then rebuilt from the account so both sides match. Temporary
+    problems (offline, a storage error) keep the change waiting.
+  - If the account numbered an offline-added thing differently (the
+    website took that number), the copy is rebuilt with the account's
+    numbers.
+  - The same thing edited on two devices while one was offline: the
+    last edit to reach the account wins.
+  - Starting a new journey needs a connection.
+  - Signing out deletes the copy, with a warning first if changes are
+    still waiting.
+- **No duplicates:** new records use client-generated UUIDs, and
+  repeated calls return the existing record.
+
+Tested live (`test/cloud_sync_live_test.dart`): offline changes,
+restart while offline, a numbering conflict with the website, an edit
+to something deleted elsewhere, photo upload after reconnecting, EXP
+counted once; and on the Android emulator in airplane mode.
 
 ## Accounts and roles (semi-RBAC)
 
@@ -335,7 +355,7 @@ account mode (tested on the Android emulator), and the web version
 4. Optional: enable the sign-up hook, leaked-password protection and a
    custom SMTP sender (Supabase's built-in email is rate-limited and
    meant for testing).
-5. Later: offline editing while signed in (an outbox of the same
-   retry-safe calls), Life Album PDF on the web, list-and-detail side
-   by side on wide screens, and a checksum (not just size) check for
-   migrated photos.
+5. Done in 1.3.0: offline editing while signed in (phone), Life Album
+   PDF on the website, list and details side by side on wide screens.
+6. Later, if wanted: a checksum (not just size) check for migrated
+   photos; Life Album PDF fonts for CJK scripts and emoji.
