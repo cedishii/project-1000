@@ -1,12 +1,11 @@
 # Cloud accounts and sync (foundation)
 
-Status: **built and tested; not released yet.** The backend runs on the
+Status: **built, tested and released (v1.2.0, website live).** The backend runs on the
 project's Supabase database. The app (same code for Android, iOS and
 the web) can sign in, keep a list in the account, and copy a phone's
 list there with verification. On the phone the account is optional,
-and without signing in nothing changes and nothing connects. A phone
-app with these features has not been released, and the website is not
-hosted yet (see "What's left").
+and without signing in nothing changes and nothing connects. The phone app with these
+features is v1.2.0, and the website is at https://1000-things.vercel.app.
 
 ```text
 Phone app (Flutter) ─┐                         ┌─ Postgres: journeys, items, memories,
@@ -327,13 +326,10 @@ live security and end-to-end tests, phone sign-in, migration and
 account mode (tested on the Android emulator), and the web version
 (tested in Chrome).
 
-1. **Host the website** (e.g. Vercel, Netlify or Cloudflare Pages; see
-   `docs/WEB_PLAN.md`, "Configuration and deployment"), then set its
-   address in Supabase → Authentication → URL Configuration (Site URL
-   and redirect URLs) and build with `--dart-define=P1000_SITE_URL=…`
-   so confirmation and password-reset links lead there.
-2. **Release the phone app** with the account features (version bump,
-   APKs built with the `SUPABASE_*` defines, `docs/RELEASING.md`).
+1. ~~Host the website.~~ Done: https://1000-things.vercel.app (Vercel,
+   `web-dist` branch), with Supabase Auth's Site URL and redirect URLs
+   set to it and a minimum password length of 8.
+2. ~~Release the phone app with the account features.~~ v1.2.0.
 3. **Approve your friends' emails** on the Owner page (or with
    `create_invitation`) once the website is up.
 4. Optional: enable the sign-up hook, leaked-password protection and a

@@ -1,10 +1,10 @@
 name: project_1000
-description: "Project: 1000 — 1000 Things Before I Die. A private, offline bucket list and memory journal."
+description: "Project: 1000 — 1000 Things Before I Die. A private bucket list and memory journal, offline or with an optional account."
 publish_to: 'none'
 
 # Version shown in the app: <version name>+<build number>.
 # Increase the build number for every release (Android requires it).
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: ^3.13.5

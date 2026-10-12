@@ -57,12 +57,21 @@ keytool -genkeypair -v -keystore project-1000-release.jks -storetype PKCS12 \
 
 ### Build
 
+Release builds include the optional account, so they are built with the
+project's public connection values (never the service-role key):
+
 ```bash
+DEFINES="--dart-define=SUPABASE_URL=https://dhjygdjxgzkbwzxlpwhb.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=<publishable key, see .env> \
+  --dart-define=P1000_SITE_URL=https://1000-things.vercel.app"
 flutter clean
-flutter build apk --release --split-per-abi   # arm64-v8a, armeabi-v7a, x86_64
-flutter build apk --release                   # universal APK (all phones, larger)
-flutter build appbundle --release             # .aab for Google Play
+flutter build apk --release --split-per-abi $DEFINES   # arm64-v8a, armeabi-v7a, x86_64
+flutter build apk --release $DEFINES                   # universal APK (all phones, larger)
+flutter build appbundle --release $DEFINES             # .aab for Google Play
 ```
+
+Without the defines the app has no account features at all and never
+connects anywhere (a fully offline build).
 
 Output:
 
@@ -78,7 +87,7 @@ Check before publishing:
 ```bash
 # Signed with the release key (not "Android Debug"):
 apksigner verify --print-certs build/app/outputs/flutter-apk/app-release.apk
-# No internet permission:
+# Permissions: only INTERNET (used by the optional account):
 aapt dump permissions build/app/outputs/flutter-apk/app-release.apk
 ```
 
@@ -101,6 +110,24 @@ git.)
 the APK (`arm64-v8a` for almost all phones from the last several years,
 `universal` if unsure), open it, and allow "Install unknown apps" for
 your browser when Android asks.
+
+## Website
+
+The website is the same app built for the web and served by Vercel
+(project `project-1000`, https://1000-things.vercel.app) from the
+`web-dist` branch, which holds only the build output.
+
+```bash
+flutter build web --release $DEFINES
+# copy build/web into a checkout of web-dist, without build/web/canvaskit
+# (the engine is loaded from Google's CDN), keep vercel.json, commit, push
+git worktree add ../p1000-web web-dist        # once
+```
+
+Then redeploy the `web-dist` branch to production in the Vercel
+dashboard (Deployments → Redeploy), or with the Vercel API. Supabase →
+Authentication → URL Configuration must list the site's address (done
+for 1000-things.vercel.app).
 
 ## iOS
 

@@ -3,7 +3,7 @@
 Status (2026-10-12): **built** with Flutter web from this codebase, as
 recommended below, and tested in Chrome against the real project
 (sign-in, sign-out, adding and showing items, account isolation, phone
-and desktop widths). Not hosted yet. The order of work at the end
+and desktop widths). Live at https://1000-things.vercel.app. The order of work at the end
 records what was done and what is left.
 
 ## Recommendation: Flutter web, from this same codebase
@@ -122,7 +122,7 @@ content needs, not device names:
    return.
 4. ✔ Web: platform, branding, centred readable layout on wide screens,
    sign-in/sign-up/reset/change password, Owner page.
-5. ☐ Host the website and set its URL in Supabase Auth.
+5. ✔ Hosted at https://1000-things.vercel.app (Vercel, from the `web-dist` branch); Supabase Auth URLs set.
 6. ☐ Approve the three friends' emails (owner action).
 7. ☐ Later: list-and-detail side by side on wide screens, Life Album
    PDF in the browser, keyboard shortcuts.

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased: accounts and the website
+## 1.2.0 — Accounts and the website
 
 - **Optional Project: 1000 account:** sign in, create an account (for
   approved emails), reset or change your password
