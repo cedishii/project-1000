@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
@@ -165,25 +165,65 @@ Future<(int, int, ShrunkImage)> shrinkImage(
   int maxSide, {
   int quality = 80,
 }) async {
-  final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
-  final descriptor = await ui.ImageDescriptor.encoded(buffer);
-  final w = descriptor.width, h = descriptor.height;
-  final scale = maxSide / (w > h ? w : h);
-  final codec = await descriptor.instantiateCodec(
-    targetWidth: scale < 1 ? (w * scale).round() : null,
-    targetHeight: scale < 1 ? (h * scale).round() : null,
-  );
-  final frame = await codec.getNextFrame();
-  final image = frame.image;
+  final (w, h, image) = kIsWeb
+      ? await _decodeInBrowser(bytes, maxSide)
+      : await _decodeNatively(bytes, maxSide);
   final rgba = (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;
   final tw = image.width, th = image.height;
   image.dispose();
-  codec.dispose();
-  descriptor.dispose();
-  buffer.dispose();
 
   final jpeg = await encodeRgbaAsJpeg(rgba, tw, th, quality: quality);
   return (w, h, ShrunkImage(jpeg, tw, th));
+}
+
+/// The size [maxSide] allows for a w × h image (never upscaled).
+(int?, int?) _target(int w, int h, int maxSide) {
+  final scale = maxSide / (w > h ? w : h);
+  return scale < 1 ? ((w * scale).round(), (h * scale).round()) : (null, null);
+}
+
+/// Phones: reads the size first, then decodes straight at the target
+/// size (cheap for large photos).
+Future<(int, int, ui.Image)> _decodeNatively(
+  Uint8List bytes,
+  int maxSide,
+) async {
+  final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+  final descriptor = await ui.ImageDescriptor.encoded(buffer);
+  final w = descriptor.width, h = descriptor.height;
+  final (tw, th) = _target(w, h, maxSide);
+  final codec = await descriptor.instantiateCodec(
+    targetWidth: tw,
+    targetHeight: th,
+  );
+  final image = (await codec.getNextFrame()).image;
+  codec.dispose();
+  descriptor.dispose();
+  buffer.dispose();
+  return (w, h, image);
+}
+
+/// Browsers have no ImageDescriptor: decode once for the size, then again
+/// at the target size (the browser applies EXIF rotation itself).
+Future<(int, int, ui.Image)> _decodeInBrowser(
+  Uint8List bytes,
+  int maxSide,
+) async {
+  final probe = await ui.instantiateImageCodec(bytes);
+  final full = (await probe.getNextFrame()).image;
+  final w = full.width, h = full.height;
+  probe.dispose();
+  final (tw, th) = _target(w, h, maxSide);
+  if (tw == null) return (w, h, full);
+  full.dispose();
+  final codec = await ui.instantiateImageCodec(
+    bytes,
+    targetWidth: tw,
+    targetHeight: th,
+  );
+  final image = (await codec.getNextFrame()).image;
+  codec.dispose();
+  return (w, h, image);
 }
 
 /// Encodes raw RGBA pixels as a JPEG on a background isolate (inline on

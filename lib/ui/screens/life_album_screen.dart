@@ -108,7 +108,11 @@ class _LifeAlbumScreenState extends State<LifeAlbumScreen> {
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 560),
-                    child: AlbumPageView(page: pages[i], facts: facts),
+                    // Every page as wide as the book, not just its text.
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: AlbumPageView(page: pages[i], facts: facts),
+                    ),
                   ),
                 ),
               ),
