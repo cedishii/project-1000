@@ -106,9 +106,8 @@ void main() {
     await local.db.delete('journeys');
     await local.close();
     final head = await client.rpc('pull_changes', params: {'p_since': 0});
-    await File(p.join(dir.path, 'sync.json')).writeAsString(
-      jsonEncode({'revision': (head as Map)['revision']}),
-    );
+    await File(p.join(dir.path, 'sync.json'))
+        .writeAsString(jsonEncode({'revision': (head as Map)['revision']}));
 
     final archive = await SyncedArchive.open(
       root: root,

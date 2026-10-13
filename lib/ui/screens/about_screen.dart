@@ -60,8 +60,9 @@ class AboutScreen extends StatelessWidget {
                   : 'Your list, memories and photos are stored in your '
                         'Project: 1000 account, which only you can open — not '
                         'the owner, not other members. Friends see only what '
-                        'you choose to share (Privacy and sharing); memories '
-                        'and their photos are never shared. There are no ads, '
+                        'you choose to share (Privacy and sharing); your list '
+                        'and memories stay private unless you share them. '
+                        'There are no ads, '
                         'no analytics and no tracking.',
               style: muted,
             ),

@@ -179,7 +179,8 @@ and an optional account keeps one list in sync between devices:
 - **Import and export on the website,** in the same backup format as the
   phone app.
 - **Friends:** usernames, friend requests, and per-field sharing with
-  everything off by default (see [docs/FRIENDS.md](docs/FRIENDS.md)).
+  everything off by default: profile details, the list, and memories with
+  their photos (see [docs/FRIENDS.md](docs/FRIENDS.md)).
 
 The backend is in `supabase/`. Details are in
 [docs/CLOUD.md](docs/CLOUD.md) and [docs/WEB_PLAN.md](docs/WEB_PLAN.md).

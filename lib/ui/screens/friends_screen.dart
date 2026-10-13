@@ -156,8 +156,8 @@ class _Welcome extends StatelessWidget {
         const SizedBox(height: 12),
         const Text(
           'Choose a username so friends can find you. You decide what they '
-          'see: your list stays private until you share it, and your '
-          'memories and photos are never shared.',
+          'see: your list and your memories stay private until you share '
+          'them.',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),

@@ -34,12 +34,12 @@ website and on several devices. Then:
 
 - Nobody can find you until you choose a username.
 - Everything else is off until you turn it on in Privacy and sharing:
-  your photo, bio, start date, progress, level, and your list
-  ("Friends only", read-only).
-- Memories, their photos, your real name, age and journey history are
-  never shared.
-- Removing a friend or making your list private takes effect
-  immediately.
+  your photo, bio, start date, progress, level, your list ("Friends
+  only", read-only), and on top of a shared list your memories with
+  their photos, and separately where they happened.
+- Your real name, age and finished journeys are never shared.
+- Removing a friend or making your list or memories private takes
+  effect immediately.
 - These rules are enforced by the database. Details:
   [FRIENDS.md](FRIENDS.md).
 

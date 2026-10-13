@@ -288,6 +288,169 @@ void main() {
   );
 
   test(
+    'shared memories and their photos, only while shared',
+    () async {
+      final tag = DateTime.now().millisecondsSinceEpoch % 100000;
+      // B: an entry with a memory and a photo (full size and thumbnail).
+      final item = ArchiveRepository.newId();
+      await b.rpc(
+        'add_item',
+        params: {
+          'p_id': item,
+          'p_title': 'Climb a volcano',
+          'p_description': '',
+        },
+      );
+      final photoId = ArchiveRepository.newId();
+      final full = Uint8List.fromList(
+        img.encodeJpg(img.Image(width: 16, height: 12)),
+      );
+      final thumb = Uint8List.fromList(
+        img.encodeJpg(img.Image(width: 4, height: 3)),
+      );
+      final file = 'photos/$photoId.jpg', small = 'thumbs/$photoId.jpg';
+      for (final (path, bytes) in [(file, full), (small, thumb)]) {
+        await b.storage
+            .from('photos')
+            .uploadBinary(
+              '$idB/$path',
+              bytes,
+              fileOptions: const FileOptions(contentType: 'image/jpeg'),
+            );
+      }
+      await b.rpc(
+        'save_memory',
+        params: {
+          'p_memory': {
+            'id': ArchiveRepository.newId(),
+            'itemId': item,
+            'title': 'At the top',
+            'text': 'Lava everywhere',
+            'date': '2026-10-02',
+            'location': 'Mayon',
+            'hashtags': ['hike'],
+            'photos': [
+              {
+                'id': photoId,
+                'file': file,
+                'thumb': small,
+                'width': 16,
+                'height': 12,
+                'createdAt': DateTime.now().toUtc().toIso8601String(),
+              },
+            ],
+          },
+        },
+      );
+      final number =
+          (await b.from('items').select('number').eq('id', item))
+                  .single['number']
+              as int;
+
+      SharingSettings bee({bool memories = false, bool location = false}) =>
+          SharingSettings(
+            username: 'e2e_b$tag',
+            displayName: 'Bee E2E',
+            listShared: true,
+            memoriesShared: memories,
+            showMemoryLocation: location,
+          );
+      await fa.saveSettings(
+        SharingSettings(username: 'e2e_a$tag', displayName: 'Ay E2E'),
+      );
+      await fb.saveSettings(bee());
+      await fc.saveSettings(
+        SharingSettings(username: 'e2e_c$tag', displayName: 'Cee E2E'),
+      );
+      await fa.sendRequest(idB);
+      await fb.respond(
+        (await fb.requests()).received.single.requestId!,
+        accept: true,
+      );
+
+      Future<int> status(SupabaseClient who, String path) async =>
+          (await http.get(
+            Uri.parse(
+              '${env['P1000_URL']}/storage/v1/object/authenticated/photos/'
+              '$idB/$path?check=${DateTime.now().microsecondsSinceEpoch}',
+            ),
+            headers: {
+              'apikey': env['P1000_KEY']!,
+              'Authorization': 'Bearer ${who.auth.currentSession!.accessToken}',
+            },
+          )).statusCode;
+      int countOf(List<SharedItem> items) =>
+          items.singleWhere((i) => i.number == number).memoryCount;
+
+      // List shared, memories private (the default): nothing of them.
+      expect(countOf(await fa.sharedList(idB)), 0);
+      await expectLater(
+        fa.sharedMemories(idB, number),
+        refused('memories_not_shared'),
+      );
+      expect(await status(a, file), isNot(200));
+
+      // Memories shared: A reads them and downloads the photo; no location.
+      await fb.saveSettings(bee(memories: true));
+      expect((await fb.mySettings())!.memoriesShared, isTrue);
+      expect(countOf(await fa.sharedList(idB)), 1);
+      final got = (await fa.sharedMemories(idB, number)).single;
+      expect(
+        (got.title, got.body, got.location),
+        ('At the top', 'Lava everywhere', ''),
+      );
+      expect(got.hashtags, ['hike']);
+      expect(got.photos.single.file, file);
+      expect(await a.storage.from('photos').download('$idB/$file'), full);
+      expect(await a.storage.from('photos').download('$idB/$small'), thumb);
+      // C (not a friend) gets nothing, through the app or storage.
+      await expectLater(
+        fc.sharedMemories(idB, number),
+        refused('memories_not_shared'),
+      );
+      expect(await status(c, file), isNot(200));
+      expect(await status(c, small), isNot(200));
+      expect(await a.from('memories').select().eq('user_id', idB), isEmpty);
+      expect(await a.from('photos').select().eq('user_id', idB), isEmpty);
+      // Read-only.
+      expect(
+        await a.storage.from('photos').remove(['$idB/$file']),
+        isEmpty,
+        reason: 'nothing removed',
+      );
+      expect(await b.storage.from('photos').download('$idB/$file'), full);
+
+      // Locations only when chosen.
+      await fb.saveSettings(bee(memories: true, location: true));
+      expect((await fa.sharedMemories(idB, number)).single.location, 'Mayon');
+
+      // Memories private again: refused at once, photo too.
+      await fb.saveSettings(bee());
+      await expectLater(
+        fa.sharedMemories(idB, number),
+        refused('memories_not_shared'),
+      );
+      expect(await status(a, file), isNot(200));
+
+      // Shared again, then the friendship ends: refused at once.
+      await fb.saveSettings(bee(memories: true));
+      expect(await status(a, file), 200);
+      await fa.removeFriend(idB);
+      await expectLater(
+        fa.sharedMemories(idB, number),
+        refused('memories_not_shared'),
+      );
+      expect(await status(a, file), isNot(200));
+
+      for (final f in [fa, fb, fc]) {
+        await f.leave();
+      }
+    },
+    skip: configured ? false : 'set P1000_* for three throwaway accounts',
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+
+  test(
     'a change on another device arrives as a live signal',
     () async {
       final a2 = await signIn('A'); // the same account on another device

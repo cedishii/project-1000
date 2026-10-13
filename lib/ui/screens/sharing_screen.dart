@@ -9,8 +9,9 @@ import 'friend_profile_screen.dart';
 import 'friends_screen.dart';
 
 /// The user's username and what friends may see. Everything is off until
-/// turned on; memories and their photos are never shared. Changes apply
-/// on the server at once, for every friend. Pops with true when saved.
+/// turned on; memories can be shared only together with the list. Changes
+/// apply on the server at once, for every friend. Pops with true when
+/// saved.
 class SharingScreen extends StatefulWidget {
   const SharingScreen({super.key, required this.api, required this.current});
 
@@ -32,6 +33,8 @@ class _SharingScreenState extends State<SharingScreen> {
   late var _stats = widget.current?.showStats ?? false;
   late var _level = widget.current?.showLevel ?? false;
   late var _list = widget.current?.listShared ?? false;
+  late var _memories = widget.current?.memoriesShared ?? false;
+  late var _location = widget.current?.showMemoryLocation ?? false;
   var _busy = false;
   String? _error;
 
@@ -59,6 +62,10 @@ class _SharingScreenState extends State<SharingScreen> {
     showStats: _stats,
     showLevel: _level,
     listShared: _list,
+    // Saving with the list private turns memories off too, so they never
+    // come back by themselves when the list is shared again.
+    memoriesShared: _list && _memories,
+    showMemoryLocation: _list && _memories && _location,
   );
 
   Future<void> _save() async {
@@ -201,6 +208,27 @@ class _SharingScreenState extends State<SharingScreen> {
               style: theme.textTheme.bodySmall,
             ),
           ),
+          SwitchListTile(
+            title: const Text('Memories'),
+            subtitle: Text(
+              _list
+                  ? 'Friends can read your memories and see their photos '
+                        'and hashtags'
+                  : 'Share your list with friends first',
+            ),
+            value: _list && _memories,
+            onChanged: _busy || !_list
+                ? null
+                : (v) => setState(() => _memories = v),
+          ),
+          SwitchListTile(
+            title: const Text('Where memories happened'),
+            subtitle: const Text("Each memory's location, shown with it"),
+            value: _list && _memories && _location,
+            onChanged: _busy || !_list || !_memories
+                ? null
+                : (v) => setState(() => _location = v),
+          ),
           const SectionHeader('Profile'),
           toggle(
             'Profile photo',
@@ -239,8 +267,7 @@ class _SharingScreenState extends State<SharingScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
             child: Text(
-              'Your memories, their photos, your age and your journey '
-              'history are never shared.',
+              'Your age and your finished journeys are never shared.',
               style: theme.textTheme.bodySmall,
             ),
           ),

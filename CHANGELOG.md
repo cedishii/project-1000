@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.0 — Share memories with friends
+
+- **Memories for friends, if you want:** a new switch in Privacy and
+  sharing. With your list shared, friends can open a done thing and read
+  its memories, with their photos and hashtags. Read-only, off by
+  default, and turning it off (or making the list private, or removing
+  the friend) ends access at once
+- **Locations separately:** where a memory happened is shown only if you
+  also turn on "Where memories happened"
+- Only memories of your current journey are shared
+
 ## 1.4.1 — Fix for new accounts on a phone
 
 - **A brand-new account now opens on a phone.** Connecting a phone with

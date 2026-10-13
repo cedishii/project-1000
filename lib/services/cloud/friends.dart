@@ -64,7 +64,7 @@ class FriendProfile {
   final int? exp;
 }
 
-/// One entry of a friend's shared list (read-only; no memories).
+/// One entry of a friend's shared list (read-only).
 class SharedItem {
   SharedItem.fromJson(Map json)
     : number = json['number'] as int,
@@ -73,13 +73,53 @@ class SharedItem {
       isCompleted = json['isCompleted'] == true,
       completedOn = json['completedOn'] == null
           ? null
-          : CalendarDate.parse('${json['completedOn']}');
+          : CalendarDate.parse('${json['completedOn']}'),
+      memoryCount = (json['memories'] as int?) ?? 0;
 
   final int number;
   final String title;
   final String description;
   final bool isCompleted;
   final CalendarDate? completedOn;
+
+  /// How many memories it has, when its owner shares memories (else 0).
+  final int memoryCount;
+}
+
+/// A memory of a friend's entry, when they share memories (read-only).
+/// [location] is empty unless they also share locations.
+class SharedMemory {
+  SharedMemory.fromJson(Map json)
+    : title = '${json['title'] ?? ''}',
+      body = '${json['body'] ?? ''}',
+      date = CalendarDate.parse('${json['date']}'),
+      location = '${json['location'] ?? ''}',
+      hashtags = [for (final h in (json['hashtags'] as List? ?? [])) '$h'],
+      photos = [
+        for (final p in (json['photos'] as List? ?? []))
+          SharedPhoto.fromJson(p as Map),
+      ];
+
+  final String title;
+  final String body;
+  final CalendarDate date;
+  final String location;
+  final List<String> hashtags;
+  final List<SharedPhoto> photos;
+}
+
+/// A photo of a shared memory: its paths in the owner's storage.
+class SharedPhoto {
+  SharedPhoto.fromJson(Map json)
+    : file = json['file'] as String,
+      thumb = json['thumb'] as String,
+      width = json['width'] as int?,
+      height = json['height'] as int?;
+
+  final String file;
+  final String thumb;
+  final int? width;
+  final int? height;
 }
 
 /// The signed-in user's username and sharing choices
@@ -94,6 +134,8 @@ class SharingSettings {
     this.showStats = false,
     this.showLevel = false,
     this.listShared = false,
+    this.memoriesShared = false,
+    this.showMemoryLocation = false,
   });
 
   SharingSettings.fromRow(Map row)
@@ -104,7 +146,9 @@ class SharingSettings {
       showStartedOn = row['show_started_on'] == true,
       showStats = row['show_stats'] == true,
       showLevel = row['show_level'] == true,
-      listShared = row['list_visibility'] == 'friends';
+      listShared = row['list_visibility'] == 'friends',
+      memoriesShared = row['memory_visibility'] == 'friends',
+      showMemoryLocation = row['show_memory_location'] == true;
 
   final String username;
   final String displayName;
@@ -116,6 +160,11 @@ class SharingSettings {
 
   /// The list's visibility: friends only (true) or private (false).
   final bool listShared;
+
+  /// Memories (text, photos, hashtags) shown to friends who can see the
+  /// list; [showMemoryLocation] adds where they happened.
+  final bool memoriesShared;
+  final bool showMemoryLocation;
 }
 
 /// A friends action the server refused or couldn't do, in plain words.
@@ -155,7 +204,11 @@ abstract interface class FriendsApi {
   Future<FriendProfile> profile(String userId);
   Future<List<SharedItem>> sharedList(String userId);
 
-  /// Someone's shared profile photo ([Person.photo]).
+  /// The memories of entry [number] of someone's shared list.
+  Future<List<SharedMemory>> sharedMemories(String userId, int number);
+
+  /// Someone's shared profile photo ([Person.photo]) or a photo of a
+  /// shared memory ([SharedPhoto.file] or [SharedPhoto.thumb]).
   ImageProvider photo(String userId, String path);
 }
 
@@ -204,6 +257,8 @@ class SupabaseFriendsApi implements FriendsApi {
     'request_not_found' ||
     'request_not_pending' => 'That request is no longer waiting.',
     'list_not_shared' => 'This list is private.',
+    'memories_not_shared' => 'These memories are private.',
+    'item_not_found' => 'That entry no longer exists.',
     'not_a_member' => 'Your account isn\'t active.',
     _ => 'Something went wrong. Please try again.',
   };
@@ -231,6 +286,8 @@ class SupabaseFriendsApi implements FriendsApi {
           'p_show_stats': s.showStats,
           'p_show_level': s.showLevel,
           'p_list_visibility': s.listShared ? 'friends' : 'private',
+          'p_memory_visibility': s.memoriesShared ? 'friends' : 'private',
+          'p_show_memory_location': s.showMemoryLocation,
         }) as Map,
       );
 
@@ -290,6 +347,18 @@ class SupabaseFriendsApi implements FriendsApi {
             as List))
       SharedItem.fromJson(i as Map),
   ];
+
+  @override
+  Future<List<SharedMemory>> sharedMemories(String userId, int number) async =>
+      [
+        for (final m
+            in ((await _rpc('friend_memories', {
+                  'p_user': userId,
+                  'p_number': number,
+                }) as Map)['memories']
+                as List))
+          SharedMemory.fromJson(m as Map),
+      ];
 
   @override
   ImageProvider photo(String userId, String path) {

@@ -40,11 +40,20 @@ Everything is **off by default** and chosen by the owner:
 | Progress (things done and listed, finished journeys) | Friends |
 | Level and EXP | Friends |
 | Bucket list: **Private** (default) or **Friends only** | Friends, read-only |
+| Memories (needs a shared list) | Friends, read-only |
+| Where memories happened (needs shared memories) | Friends |
 
-Never shared: memories, their photos and hashtags, your real name,
-nickname, age, journey history, archived Life Albums, settings and the
-account email. A shared list shows each entry's number, title,
-description and whether (and when) it was done, in your order.
+A shared list shows each entry's number, title, description and whether
+(and when) it was done, in your order. With **Memories** on, friends can
+also open an entry's memories: title, text, date, hashtags and photos,
+plus the location if **Where memories happened** is on. Only memories of
+your current journey are shown.
+
+Never shared: your real name, nickname, age, finished journeys and their
+Life Albums, settings and the account email.
+
+Saving your settings with the list set to Private also turns memories
+off, so they never come back by themselves when you share the list again.
 
 ## Rules enforced by the database
 
@@ -70,12 +79,13 @@ same permissions.
     `user_low < user_high`).
   - After a decline, the sender must wait 7 days before asking again.
   - Anyone can send at most 50 requests a day.
-- **Other people's data** is only reachable through `friend_profile` and
-  `friend_list`. They check the friendship and the owner's current
-  settings on every call. Turning the list to Private, or removing the
-  friend, ends access on the very next request, with no sign-out or
+- **Other people's data** is only reachable through `friend_profile`,
+  `friend_list` and `friend_memories`. They check the friendship and the owner's current
+  settings on every call. Turning the list or the memories to Private,
+  or removing the friend, ends access on the very next request, with no sign-out or
   restart needed. "Private" and "not a friend" give the same refusal, so
-  nothing is revealed.
+  nothing is revealed. Memories are shared only on top of a shared list
+  (`private.can_view_memories` requires `can_view_list`).
 - **Read-only:** friends can never change each other's lists. Every
   archive function still only touches the caller's own rows. The tests
   call `update_item`, `set_item_completed`, `delete_item`,
@@ -94,6 +104,11 @@ same permissions.
   - Any new request is checked, and the app stops asking for a hidden
     photo at once, because the server no longer lists it. Only someone
     who already saw the picture can see it again, briefly.
+- **Memory photos:** a second storage policy lets a friend read the
+  full-size photo and thumbnail of exactly the memories they may see
+  right now (current journey, list and memories shared, still friends,
+  both active). Nothing else in the folder, and never writes or deletes.
+  The same CDN limit applies to a photo someone already opened.
 
 ### Ready for per-entry visibility
 
@@ -103,8 +118,9 @@ viewer)`. To share or hide single entries later:
 1. Add a column to `items`.
 2. Filter on it there.
 
-Memories have their own setting, `memory_visibility`, which today only
-allows `private`, so sharing them can be added separately from the list.
+Memories go through `friend_memories`, which looks the entry up in
+`visible_items` too, so hiding an entry would hide its memories and their
+photos with it.
 
 ## Notifications
 
@@ -114,7 +130,7 @@ Friends action. There are no push notifications.
 
 ## Tests
 
-- `supabase/tests/run_tests.py`: 11 Friends tests (on real Postgres roles
+- `supabase/tests/run_tests.py`: 15 Friends tests (on real Postgres roles
   and RLS):
   - Search shows identity only.
   - Usernames are validated and unique.
@@ -126,9 +142,18 @@ Friends action. There are no push notifications.
   - The photo policy works as described above.
   - Being disabled or leaving Friends ends sharing.
   - Archives and progress are untouched.
+  - Memories are shared only when chosen, only with friends, only with
+    a shared list, without the location unless chosen, and access ends
+    at once.
+  - Only memories (and photo files) of the current journey are shared.
+  - Memory photos are readable only while their memory is shared.
+  - Saving settings from an older app keeps the memory choices.
 - Mutation checks: making each rule deliberately leaky (ignoring the
   list setting, ignoring the friendship, a looser photo policy, an
-  ungated bio, a bio in search results) makes the suite fail.
+  ungated bio, a bio in search results) makes the suite fail. The same
+  for memories: ignoring the memory setting, skipping the list and
+  friendship check, always showing the location, an open photo policy,
+  photos of finished journeys, and an older app resetting the choice.
 - `test/friends_live_test.dart`: the whole flow against the real project
   with three throwaway accounts, including direct API attempts and
   revocation without signing out.

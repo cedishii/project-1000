@@ -1,10 +1,13 @@
 // The Friends screens against an in-memory stand-in for the server (the
 // real rules are tested in supabase/tests and test/friends_live_test).
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:project_1000/services/cloud/friends.dart';
 import 'package:project_1000/state/app_store.dart';
 import 'package:project_1000/ui/screens/friends_screen.dart';
+import 'package:project_1000/ui/screens/sharing_screen.dart';
 import 'package:project_1000/ui/store_scope.dart';
 
 import 'helpers.dart';
@@ -17,6 +20,7 @@ class FakeFriends implements FriendsApi {
   };
   final relation = <String, String>{'bob': 'none', 'carol': 'received'};
   final shared = <String>{'carol'};
+  final memoriesShared = <String>{'carol'};
   final calls = <String>[];
 
   Person _p(String id) => Person.fromJson({
@@ -33,7 +37,10 @@ class FakeFriends implements FriendsApi {
 
   @override
   Future<SharingSettings> saveSettings(SharingSettings s) async {
-    calls.add('save ${s.username} list=${s.listShared}');
+    calls.add(
+      'save ${s.username} list=${s.listShared} '
+      'memories=${s.memoriesShared} location=${s.showMemoryLocation}',
+    );
     return settings = s;
   }
 
@@ -106,13 +113,47 @@ class FakeFriends implements FriendsApi {
         'number': 7,
         'title': 'Climb a volcano',
         'isCompleted': true,
+        'memories': memoriesShared.contains(userId) ? 1 : 0,
       }),
     ];
   }
 
   @override
-  ImageProvider photo(String userId, String path) => throw UnimplementedError();
+  Future<List<SharedMemory>> sharedMemories(String userId, int number) async {
+    calls.add('memories $userId #$number');
+    if (relation[userId] != 'friend' || !memoriesShared.contains(userId)) {
+      throw FriendsException(
+        'These memories are private.',
+        'memories_not_shared',
+      );
+    }
+    return [
+      SharedMemory.fromJson({
+        'title': 'At the top',
+        'body': 'Lava everywhere',
+        'date': '2026-10-02',
+        'location': '',
+        'hashtags': ['hike'],
+        'photos': [
+          {'file': 'photos/a.png', 'thumb': 'thumbs/a.png'},
+        ],
+      }),
+    ];
+  }
+
+  final photosAsked = <String>[];
+
+  @override
+  ImageProvider photo(String userId, String path) {
+    photosAsked.add('$userId/$path');
+    return MemoryImage(_pixel);
+  }
 }
+
+/// A 1×1 PNG.
+final _pixel = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+);
 
 extension on Person {
   Map<String, Object?> toJsonForTest() => {
@@ -173,7 +214,7 @@ void main() {
     );
     await tester.tap(find.text('Save and continue'));
     await tester.pumpAndSettle();
-    expect(api.calls, ['save me_too list=false']);
+    expect(api.calls, ['save me_too list=false memories=false location=false']);
     expect(find.text('Requests'), findsOneWidget);
     expect(find.textContaining('No friends yet'), findsOneWidget);
   });
@@ -221,6 +262,33 @@ void main() {
     expect(find.text('Climb a volcano'), findsOneWidget);
     expect(find.byType(Checkbox), findsNothing);
 
+    // She shares memories: the entry opens with them, photo included,
+    // and nothing to edit.
+    await tester.tap(find.text('Climb a volcano'));
+    await tester.pumpAndSettle();
+    expect(api.calls, contains('memories carol #7'));
+    expect(find.text('At the top'), findsOneWidget);
+    expect(find.text('Lava everywhere'), findsOneWidget);
+    expect(find.text('#hike'), findsOneWidget);
+    expect(find.byIcon(Icons.place_outlined), findsNothing);
+    expect(api.photosAsked, ['carol/thumbs/a.png']);
+    expect(find.byType(PopupMenuButton<String>), findsNothing);
+    await tester.tap(find.byType(InkWell).last);
+    await tester.pumpAndSettle();
+    expect(api.photosAsked, contains('carol/photos/a.png'));
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(400, 20));
+    await tester.pumpAndSettle();
+
+    // She stops sharing memories: the entry says so.
+    api.memoriesShared.clear();
+    await tester.tap(find.text('Climb a volcano'));
+    await tester.pumpAndSettle();
+    expect(find.text("Carol C's memories are private."), findsOneWidget);
+    await tester.tapAt(const Offset(400, 20));
+    await tester.pumpAndSettle();
+
     // She makes it private: the next load says so.
     api.shared.clear();
     tester.state<RefreshIndicatorState>(find.byType(RefreshIndicator)).show();
@@ -241,5 +309,69 @@ void main() {
       find.text('Only friends see more of Carol C\'s profile.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('memories can be shared only with a shared list', (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final api = FakeFriends()
+      ..settings = const SharingSettings(username: 'mee', displayName: 'Me');
+    // Opened from another page, as in the app (it closes when saved).
+    await tester.pumpWidget(
+      StoreScope(
+        store: store,
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      SharingScreen(api: api, current: api.settings),
+                ),
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    Future<void> open() async {
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+    }
+
+    SwitchListTile tile(String title) => tester.widget<SwitchListTile>(
+      find.widgetWithText(SwitchListTile, title),
+    );
+
+    await open();
+    expect(tile('Memories').onChanged, isNull);
+    expect(tile('Memories').value, isFalse);
+    expect(find.text('Share your list with friends first'), findsOneWidget);
+
+    await tester.tap(find.text('Friends only'));
+    await tester.pumpAndSettle();
+    expect(tile('Where memories happened').onChanged, isNull);
+    await tester.tap(find.text('Memories'));
+    await tester.pumpAndSettle();
+    expect(tile('Memories').value, isTrue);
+    await tester.tap(find.text('Where memories happened'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(api.calls, ['save mee list=true memories=true location=true']);
+
+    // Reopened, it shows what was saved; making the list private again
+    // saves memories as private too.
+    await open();
+    expect(tile('Memories').value, isTrue);
+    expect(tile('Where memories happened').value, isTrue);
+    await tester.tap(find.text('Private'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(api.calls.last, 'save mee list=false memories=false location=false');
   });
 }

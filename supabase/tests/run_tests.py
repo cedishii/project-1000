@@ -1142,11 +1142,15 @@ def every_archive_change_bumps_the_accounts_sync_head_only(w: World):
 
 def social(w: World, uid: str, username: str, name: str | None = None, **share) -> dict:
     """Chooses a username (and sharing choices) for uid."""
-    return w.rpc(uid, "select to_jsonb(public.save_social_profile(:u, :n, :ph, :b, :st, :sx, :lv, :lst))",
+    # memories / location left out = None: keep what is saved (as an
+    # older app does).
+    return w.rpc(uid, "select to_jsonb(public.save_social_profile(:u, :n, :ph, :b, :st, :sx, :lv, :lst, "
+                 "cast(:mv as text), cast(:ml as boolean)))",
                  u=username, n=name or username.title(),
                  ph=share.get("photo", False), b=share.get("bio", False),
                  st=share.get("started", False), sx=share.get("stats", False),
-                 lv=share.get("level", False), lst=share.get("list", "private"))[0][0]
+                 lv=share.get("level", False), lst=share.get("list", "private"),
+                 mv=share.get("memories"), ml=share.get("location"))[0][0]
 
 
 def search(w, uid, q):
@@ -1399,8 +1403,10 @@ def bucket_list_visibility_is_enforced_and_revoked_at_once(w: World):
     shared = list_of(w, a, b)
     eq([i["title"] for i in shared["items"]], ["third", "second", "first"], "owner's order")
     eq(shared["items"][2]["completedOn"], "2026-10-01", "completion shown")
-    eq(set(shared["items"][0]), {"number", "title", "description", "isCompleted", "completedOn"},
-       "entries only")
+    eq(set(shared["items"][0]), {"number", "title", "description", "isCompleted", "completedOn",
+                                 "memories"}, "entries only")
+    eq(shared["memoriesShared"], False, "memories not shared")
+    eq([i["memories"] for i in shared["items"]], [0, 0, 0], "no memory counts")
     text = json.dumps(shared)
     assert "private memory" not in text and "Secret place" not in text and ids[0] not in text, \
         "no memories, photos or ids"
@@ -1523,6 +1529,156 @@ def friend_actions_leave_archives_and_progress_untouched(w: World):
     for u in (a, b):
         eq(w.rpc(u, "select public.export_archive()")[0][0], before[u], "archive unchanged")
         eq(w.rpc(u, "select public.pull_changes(0)")[0][0]["revision"], rev[u], "no sync changes")
+
+
+def memories_of(w, viewer, other, number):
+    return w.rpc(viewer, "select public.friend_memories(:o, :n)", o=other, n=number)[0][0]
+
+
+@test
+def memories_are_shared_only_when_chosen_and_only_with_friends(w: World):
+    a, b, c = w.new_member("a"), w.new_member("b"), w.new_member("c")
+    first = add_item(w, b, "first")
+    add_item(w, b, "second")
+    p1, p2 = photo(), photo()
+    save_memory(w, b, first["id"], photos=[p1, p2], title="Day one", text="what happened",
+                location="Secret place", hashtags=["fun"], date="2026-10-02")
+    save_memory(w, b, first["id"], text="later", date="2026-10-03")
+    for u, n in [(a, "alice"), (b, "bob"), (c, "carol")]:
+        social(w, u, n)
+    befriend(w, a, b)
+
+    # Off by default, even with the list shared.
+    social(w, b, "bob", list="friends")
+    shared = list_of(w, a, b)
+    eq(shared["memoriesShared"], False, "off by default")
+    eq([i["memories"] for i in shared["items"]], [0, 0], "no counts while off")
+    e_off = expect_error(lambda: memories_of(w, a, b, 1), "PT403", "memories_not_shared")
+    assert "what happened" not in json.dumps(shared), "no memory text in the list"
+
+    # Turned on: counts, then the memories in order, without the location.
+    social(w, b, "bob", list="friends", memories="friends")
+    shared = list_of(w, a, b)
+    eq(shared["memoriesShared"], True, "shared")
+    eq([i["memories"] for i in shared["items"]], [2, 0], "counts per entry")
+    got = memories_of(w, a, b, 1)["memories"]
+    eq([m["body"] for m in got], ["what happened", "later"], "memories in order")
+    eq(got[0]["title"], "Day one", "title")
+    eq(got[0]["date"], "2026-10-02", "date")
+    eq(got[0]["hashtags"], ["fun"], "hashtags")
+    eq(got[0]["location"], "", "location hidden by default")
+    eq([ph["file"] for ph in got[0]["photos"]], [p1["file"], p2["file"]], "photos in order")
+    eq(set(got[0]["photos"][0]), {"file", "thumb", "width", "height"}, "photo paths only")
+    eq(set(got[0]), {"title", "body", "date", "location", "hashtags", "photos"}, "fields")
+    assert first["id"] not in json.dumps(got), "no ids"
+    eq(memories_of(w, a, b, 2)["memories"], [], "entry without memories")
+    expect_error(lambda: memories_of(w, a, b, 3), "PT404", "item_not_found")
+    social(w, b, "bob", list="friends", memories="friends", location=True)
+    eq(memories_of(w, a, b, 1)["memories"][0]["location"], "Secret place", "location when chosen")
+    eq(memories_of(w, b, b, 1)["memories"][0]["location"], "Secret place", "own preview")
+
+    # Never to anyone else, and the same refusal every time.
+    e_stranger = expect_error(lambda: memories_of(w, c, b, 1), "PT403", "memories_not_shared")
+    eq(e_off.message, e_stranger.message, "indistinguishable refusals")
+    # A private list hides its memories too, whatever the memory setting.
+    social(w, b, "bob", list="private", memories="friends")
+    expect_error(lambda: memories_of(w, a, b, 1), "PT403", "memories_not_shared")
+    social(w, b, "bob", list="friends", memories="private")
+    expect_error(lambda: memories_of(w, a, b, 1), "PT403", "memories_not_shared")
+    social(w, b, "bob", list="friends", memories="friends")
+    eq(len(memories_of(w, a, b, 1)["memories"]), 2, "shared again")
+    # The owner disabling the account, or removing the friend, ends it.
+    w.rpc(w.owner, "select public.set_member_status(:u, 'disabled')", u=b)
+    expect_error(lambda: memories_of(w, a, b, 1), "PT403", "memories_not_shared")
+    w.rpc(w.owner, "select public.set_member_status(:u, 'active')", u=b)
+    eq(len(memories_of(w, a, b, 1)["memories"]), 2, "back when enabled")
+    w.rpc(a, "select public.remove_friend(:b)", b=b)
+    expect_error(lambda: memories_of(w, a, b, 1), "PT403", "memories_not_shared")
+    # Direct reads still show nothing; the helper and anonymous calls are refused.
+    eq(w.rpc(a, "select count(*) from public.memories where user_id = :b", b=b)[0][0], 0, "table hidden")
+    expect_error(lambda: w.rpc(a, "select private.can_view_memories(:b, auth.uid())", b=b), "42501")
+    expect_error(lambda: w.db.as_user(None, "select public.friend_memories(:b, 1)", b=b), "42501")
+
+
+@test
+def only_memories_of_the_current_journey_are_shared(w: World):
+    a, b = w.new_member("a"), w.new_member("b")
+    import_archive(w, b, fixture())
+    for u, n in [(a, "alice"), (b, "bob")]:
+        social(w, u, n)
+    social(w, b, "bob", list="friends", memories="friends", location=True)
+    befriend(w, a, b)
+    shared = list_of(w, a, b)
+    current = w.rpc(b, "select count(*) from public.memories m join public.items i on i.id = m.item_id "
+                       "join public.journeys j on j.id = i.journey_id where j.status = 'active'")[0][0]
+    seen = sum(len(memories_of(w, a, b, i["number"])["memories"]) for i in shared["items"])
+    eq(seen, current, "every memory of the current journey")
+    eq(sum(i["memories"] for i in shared["items"]), current, "counts add up")
+    assert count(w, b, "memories") > current, "fixture should have memories in an archived journey"
+    # Photo files likewise: only those of the current journey's memories.
+    current_item = w.rpc(b, "select i.id from public.items i join public.journeys j "
+                            "on j.id = i.journey_id where j.status = 'active' limit 1")[0][0]
+    save_memory(w, b, str(current_item), photos=[photo()])
+    files = w.rpc(b, "select p.file, j.status = 'active' from public.photos p "
+                     "join public.memories m on m.id = p.memory_id "
+                     "join public.items i on i.id = m.item_id "
+                     "join public.journeys j on j.id = i.journey_id")
+    assert any(not cur for _, cur in files) and any(cur for _, cur in files), \
+        "fixture should have photos in both journeys"
+    for f, _ in files:
+        w.rpc(b, "insert into storage.objects (bucket_id, name) values ('photos', :n)", n=f"{b}/{f}")
+    seen_files = sorted(r[0] for r in w.rpc(a, "select name from storage.objects where name like :p",
+                                             p=f"{b}/%"))
+    eq(seen_files, sorted(f"{b}/{f}" for f, cur in files if cur), "current journey's photos only")
+
+
+@test
+def memory_photos_are_readable_only_while_their_memory_is_shared(w: World):
+    a, b, c = w.new_member("a"), w.new_member("b"), w.new_member("c")
+    item = add_item(w, b, "thing")
+    p = photo()
+    save_memory(w, b, item["id"], photos=[p])
+    for n in [p["file"], p["thumb"], "photos/loose.jpg", "profile/me.jpg"]:
+        w.rpc(b, "insert into storage.objects (bucket_id, name) values ('photos', :n)", n=f"{b}/{n}")
+    for u, n in [(a, "alice"), (c, "carol")]:
+        social(w, u, n)
+    social(w, b, "bob", list="friends")
+    befriend(w, a, b)
+
+    def visible(viewer):
+        return sorted(r[0] for r in w.rpc(viewer, "select name from storage.objects where name like :p",
+                                           p=f"{b}/%"))
+    eq(visible(a), [], "nothing while memories are private")
+    social(w, b, "bob", list="friends", memories="friends")
+    eq(visible(a), sorted([f"{b}/{p['file']}", f"{b}/{p['thumb']}"]), "the memory's photo and thumbnail")
+    eq(visible(c), [], "not to non-friends")
+    eq(w.rpc(a, "delete from storage.objects where name like :p returning 1", p=f"{b}/%"), [],
+       "can't delete them")
+    eq(w.rpc(a, "update storage.objects set name = name || 'x' where name like :p returning 1",
+             p=f"{b}/%"), [], "can't rename them")
+    social(w, b, "bob", list="private", memories="friends")
+    eq(visible(a), [], "hidden with the list")
+    social(w, b, "bob", list="friends", memories="friends")
+    w.rpc(b, "select public.delete_memory(m.id) from public.memories m")
+    eq(visible(a), [], "gone with the memory")
+
+
+@test
+def older_apps_saving_settings_keep_the_memory_choices(w: World):
+    b = w.new_member("b")
+    social(w, b, "bob", list="friends", memories="friends", location=True)
+    # The 1.4 app sends only the first eight arguments.
+    w.rpc(b, "select public.save_social_profile('bob', 'Bob', false, false, false, false, false, 'friends')")
+    row = w.rpc(b, "select memory_visibility, show_memory_location from public.social_profiles")[0]
+    eq(list(row), ["friends", True], "kept")
+    social(w, b, "bob", list="friends", memories="private", location=False)
+    row = w.rpc(b, "select memory_visibility, show_memory_location from public.social_profiles")[0]
+    eq(list(row), ["private", False], "turned off")
+    expect_error(lambda: social(w, b, "bob", memories="everyone"), "PT422", "invalid_visibility")
+    # A new username starts private.
+    c = w.new_member("c")
+    row = social(w, c, "carol")
+    eq([row["memory_visibility"], row["show_memory_location"]], ["private", False], "private by default")
 
 
 # -------------------------------------------------------------------- runner
