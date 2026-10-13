@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.1 — Fix for new accounts on a phone
+
+- **A brand-new account now opens on a phone.** Connecting a phone with
+  an empty list to a new account showed "Your list couldn't be opened",
+  because the account had no journey yet. The phone now starts Journey 1
+  in the account (as a new phone does), and phones already showing the
+  message are fixed by installing this version. Nothing was lost
+
 ## 1.4.0 — Friends, one list everywhere, import/export on the web
 
 - **Friends:** a new tab when signed in. Choose a username, find people

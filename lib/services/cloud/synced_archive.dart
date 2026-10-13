@@ -112,13 +112,21 @@ class SyncedArchive implements ArchiveBackend {
       revision,
     );
     archive.status.value = SyncStatus(pending: archive._outbox.length);
-    if (revision == null) {
-      try {
+    try {
+      if (revision == null) await archive._rebuild();
+      // A brand-new account has no journey yet (nothing was copied into
+      // it): start Journey 1 in the account, as a new phone does, and
+      // fetch it. Also repairs a copy made before this was done.
+      if ((await cache.db.query(
+        'journeys',
+        where: "status = 'active'",
+      )).isEmpty) {
+        await remote.activeJourney();
         await archive._rebuild();
-      } catch (_) {
-        await cache.close();
-        rethrow;
       }
+    } catch (_) {
+      await cache.close();
+      rethrow;
     }
     return archive;
   }
